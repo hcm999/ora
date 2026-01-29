@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORAC质押管理</title>
+    <title>ORAC质押管理 - 修复版</title>
     <!-- 引入 Bootstrap 用于快速布局 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- 引入 Ethers.js V6 -->
@@ -498,7 +498,7 @@
 <div class="container py-4">
     <!-- 【钱包连接区域】 -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold">ORAC质押管理</h3>
+        <h3 class="fw-bold">ORAC质押管理 - 修复版</h3>
         <button id="connectBtn" class="btn btn-primary" onclick="connectWallet()">连接钱包</button>
     </div>
 
@@ -716,11 +716,12 @@
         return `${month}/${day} ${hour}:${minute}`;
     }
 
-    function calculateProgress(stakeTime, durationSeconds) {
+    function calculateProgress(stakeTime, totalDuration, cycle) {
         const now = Math.floor(Date.now() / 1000);
         const elapsedTime = now - stakeTime;
-        if (elapsedTime >= durationSeconds) return 100;
-        return Math.min(100, Math.floor((elapsedTime / durationSeconds) * 100));
+        const totalLockSeconds = totalDuration * cycle;
+        if (elapsedTime >= totalLockSeconds) return 100;
+        return Math.min(100, Math.floor((elapsedTime / totalLockSeconds) * 100));
     }
     
     // 获取今天的开始时间戳（UTC时间）
@@ -843,19 +844,17 @@
             const myBal = await usdtContract.balanceOf(userAddress);
             document.getElementById('myBalance').innerText = formatAmount(myBal);
 
+            // 【修复点1：获取个人总质押 - 从质押记录中计算】
+            await calculatePersonalStakedBalance();
+            
             // 获取用户信息
             const userInfoData = await stakingContract.userInfo(userAddress);
-            const stakedBal = userInfoData[0]; // 总质押金额
             const pendingRewards = userInfoData[2]; // 可提取收益
             
-            document.getElementById('stakedBalance').innerText = formatAmount(stakedBal);
             document.getElementById('pendingRewards').innerText = formatAmount(pendingRewards);
 
-            // 获取合约总信息
-            const contractInfoData = await stakingContract.contractInfo();
-            // contractInfo 返回5个值，假设第一个值是合约总质押金额
-            const totalStaked = contractInfoData[0];
-            document.getElementById('totalStaked').innerText = formatAmount(totalStaked);
+            // 【修复点2：获取合约总质押 - 从质押记录中计算】
+            await calculateContractTotalStaked();
             
             // 获取团队信息
             document.getElementById('teamTotalPerformance').innerText = formatAmount(userInfoData[6]); // 团队总业绩
@@ -863,7 +862,7 @@
             document.getElementById('teamTotalMembers').innerText = userInfoData[4]; // 团队总人数
             document.getElementById('teamSettledRewards').innerText = formatAmount(userInfoData[7]); // 已结算团队奖励
 
-            // 获取质押列表并计算今日质押量和赎回量
+            // 【修复点3：计算每日质押量和赎回量】
             await calculateDailyStats();
             
             // 获取质押列表
@@ -876,7 +875,65 @@
         }
     }
     
-    // 计算每日质押量和赎回量
+    // 【新增：计算个人总质押 - 从质押记录中计算】
+    async function calculatePersonalStakedBalance() {
+        if (!userAddress) return;
+        
+        try {
+            // 获取质押记录
+            const stakeInfo = await stakingContract.userStakeInfo(userAddress);
+            let totalPersonalStaked = ethers.parseUnits("0", 18);
+            
+            // 遍历所有质押记录，只计算未赎回的
+            for (let i = 0; i < stakeInfo.length; i++) {
+                const record = stakeInfo[i];
+                if (record.isRedeem === 0) { // 只计算未赎回的
+                    totalPersonalStaked += record.stakeAmount;
+                }
+            }
+            
+            document.getElementById('stakedBalance').innerText = formatAmount(totalPersonalStaked);
+            
+        } catch (error) {
+            console.error("计算个人总质押失败:", error);
+            document.getElementById('stakedBalance').innerText = "0.00";
+        }
+    }
+    
+    // 【新增：计算合约总质押 - 从质押记录中计算（注意：这只能计算当前用户的质押，真正的合约总质押需要合约函数）】
+    async function calculateContractTotalStaked() {
+        if (!userAddress) return;
+        
+        try {
+            // 这里从合约的contractInfo函数获取总质押
+            // 根据合约ABI，contractInfo返回5个值，第1个应该是合约总质押
+            const contractInfoData = await stakingContract.contractInfo();
+            const totalStaked = contractInfoData[0];
+            document.getElementById('totalStaked').innerText = formatAmount(totalStaked);
+            
+        } catch (error) {
+            console.error("获取合约总质押失败:", error);
+            // 如果无法获取，尝试从质押记录中计算当前用户的总质押
+            try {
+                const stakeInfo = await stakingContract.userStakeInfo(userAddress);
+                let totalStaked = ethers.parseUnits("0", 18);
+                
+                for (let i = 0; i < stakeInfo.length; i++) {
+                    const record = stakeInfo[i];
+                    if (record.isRedeem === 0) { // 只计算未赎回的
+                        totalStaked += record.stakeAmount;
+                    }
+                }
+                
+                document.getElementById('totalStaked').innerText = formatAmount(totalStaked) + " (仅当前用户)";
+            } catch (err) {
+                console.error("计算总质押失败:", err);
+                document.getElementById('totalStaked').innerText = "0.00";
+            }
+        }
+    }
+    
+    // 【修复点4：修复每日质押量和赎回量的计算】
     async function calculateDailyStats() {
         if (!userAddress) return;
         
@@ -896,23 +953,23 @@
             for (let i = 0; i < stakeInfo.length; i++) {
                 const record = stakeInfo[i];
                 const stakeTime = Number(record.stakeTime);
+                const amount = parseFloat(ethers.formatUnits(record.stakeAmount, 18));
                 
-                // 如果是今天的质押
+                // 【修复】计算质押时间是否在今天
                 if (stakeTime >= todayStart) {
-                    const amount = parseFloat(ethers.formatUnits(record.stakeAmount, 18));
                     todayStakeAmount += amount;
                 }
                 
-                // 如果是已赎回的记录
-                if (record.isRedeem === 1 && record.stakeTime >= todayStart) {
-                    const amount = parseFloat(ethers.formatUnits(record.stakeAmount, 18));
+                // 【修复】如果已赎回，但无法获取赎回时间，我们假设赎回时间在质押时间之后
+                // 这里简化处理：如果已赎回且质押时间在今天，则计入今日赎回量
+                if (record.isRedeem === 1 && stakeTime >= todayStart) {
                     todayRedeemAmount += amount;
                 }
             }
             
             // 更新显示
-            document.getElementById('todayStakeAmount').innerText = formatAmountTwoDecimals(ethers.parseUnits(todayStakeAmount.toString(), 18));
-            document.getElementById('todayRedeemAmount').innerText = formatAmountTwoDecimals(ethers.parseUnits(todayRedeemAmount.toString(), 18));
+            document.getElementById('todayStakeAmount').innerText = todayStakeAmount.toFixed(2);
+            document.getElementById('todayRedeemAmount').innerText = todayRedeemAmount.toFixed(2);
             
         } catch (error) {
             console.error("计算每日统计失败:", error);
@@ -921,7 +978,7 @@
         }
     }
 
-    // 3. 渲染质押卡片
+    // 【修复点5：修复质押记录卡片的状态和倒计时进度】
     async function renderStakeCards() {
         const container = document.getElementById('stakeCardsContainer');
         container.innerHTML = '<div class="text-center py-3"><div class="loading-spinner"></div> 加载中...</div>';
@@ -962,30 +1019,25 @@
                 const durationSeconds = STAKE_DURATIONS[stakeDay] || 86400;
                 const durationLabel = STAKE_DURATION_LABELS[stakeDay] || "未知";
                 
-                // 计算解锁时间
-                const unlockTime = stakeTime + (cycle * durationSeconds);
+                // 【修复点6：正确计算解锁时间 - stakeDay是天数，cycle是期数】
+                const totalLockDays = stakeDay * cycle;
+                const totalLockSeconds = totalLockDays * 86400;
+                const unlockTime = stakeTime + totalLockSeconds;
                 const timeRemaining = unlockTime - now;
                 
-                // 计算是否锁定
-                const isLocked = timeRemaining > 0 && !isRedeemed;
-                const isUnlocked = timeRemaining <= 0 && !isRedeemed;
-                const progressPercent = calculateProgress(stakeTime, cycle * durationSeconds);
-                
+                // 【修复点7：正确判断状态】
                 let statusText = '';
                 let statusClass = '';
                 
                 if (isRedeemed) {
-                    statusText = '已提取';
+                    statusText = '已赎回';
                     statusClass = 'status-completed';
-                } else if (isLocked) {
+                } else if (timeRemaining > 0) {
                     statusText = '锁定中';
                     statusClass = 'status-locked';
-                } else if (isUnlocked) {
+                } else {
                     statusText = '可赎回';
                     statusClass = 'status-unlocked';
-                } else {
-                    statusText = '未知';
-                    statusClass = 'status-completed';
                 }
                 
                 // 根据筛选条件决定是否显示
@@ -993,17 +1045,17 @@
                 if (myStakeFilter === 'all') {
                     shouldDisplay = true;
                 } else if (myStakeFilter === 'active') {
-                    shouldDisplay = !isRedeemed; // 显示未提取的（质押中）
+                    shouldDisplay = !isRedeemed && timeRemaining > 0; // 显示未赎回且未到期的
                 } else if (myStakeFilter === 'completed') {
-                    shouldDisplay = isRedeemed; // 显示已提取的
+                    shouldDisplay = isRedeemed; // 显示已赎回的
                 }
                 
                 if (!shouldDisplay) {
                     continue; // 跳过不显示
                 }
 
-                const remainingTimeStr = isLocked ? formatTimeShort(timeRemaining) : 
-                                          isUnlocked ? '已解锁' : '已完成';
+                const remainingTimeStr = timeRemaining > 0 ? formatTimeShort(timeRemaining) : '已解锁';
+                const progressPercent = calculateProgress(stakeTime, stakeDay, cycle);
 
                 html += `
                     <div class="stake-card" id="stake-card-${i}">
@@ -1016,7 +1068,7 @@
                             <div class="stake-amount">${amount.toFixed(0)} USDT</div>
                             <div class="stake-meta">
                                 <div class="stake-duration">
-                                    <span class="badge-duration">${durationLabel} × ${cycle}期</span>
+                                    <span class="badge-duration">${stakeDay}天 × ${cycle}期</span>
                                 </div>
                                 <div class="stake-time">${stakeTimeStr}</div>
                             </div>
@@ -1033,7 +1085,7 @@
                         </div>
                         
                         <div class="stake-card-actions">
-                            ${isUnlocked ? 
+                            ${(statusText === '可赎回') ? 
                                 `<button class="btn btn-warning btn-sm" id="unstake-btn-${i}" onclick="handleUnstake(${i})">赎回</button>` : 
                                 `<button class="btn btn-secondary btn-sm" disabled>${isRedeemed ? '已赎回' : '等待解锁'}</button>`
                             }
@@ -1041,8 +1093,8 @@
                     </div>
                 `;
                 
-                if (isLocked) {
-                    startProgressCountdown(i, timeRemaining, cycle * durationSeconds);
+                if (statusText === '锁定中') {
+                    startProgressCountdown(i, timeRemaining, totalLockSeconds, stakeTime, stakeDay, cycle);
                 }
             }
 
@@ -1073,35 +1125,55 @@
         }
     }
 
-    // 启动进度条倒计时
-    function startProgressCountdown(id, initialSeconds, totalSeconds) {
-        let remaining = initialSeconds;
+    // 【修复点8：修复进度条倒计时逻辑】
+    function startProgressCountdown(id, remainingSeconds, totalLockSeconds, stakeTime, stakeDay, cycle) {
         const progressElement = document.getElementById(`progress-${id}`);
         const timeElement = document.querySelector(`#stake-card-${id} .stake-remaining-time`);
+        const percentElement = document.querySelector(`#stake-card-${id} .stake-progress-percent`);
         
-        if (!progressElement || !timeElement) return;
+        if (!progressElement || !timeElement || !percentElement) return;
         
-        const timer = setInterval(() => {
-            remaining--;
+        const updateProgress = () => {
+            const now = Math.floor(Date.now() / 1000);
+            const elapsedTime = now - stakeTime;
+            const totalSeconds = totalLockSeconds;
             
-            if (remaining <= 0) {
-                clearInterval(timer);
-                refreshData();
+            if (elapsedTime >= totalSeconds) {
+                timeElement.textContent = `剩余: 已解锁`;
+                progressElement.style.width = '100%';
+                percentElement.textContent = '100%';
+                
+                // 更新按钮状态
+                const button = document.querySelector(`#unstake-btn-${id}`);
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = "赎回";
+                }
+                
+                // 更新状态标签
+                const statusElement = document.querySelector(`#stake-card-${id} .stake-card-status`);
+                if (statusElement) {
+                    statusElement.textContent = '可赎回';
+                    statusElement.className = 'stake-card-status status-unlocked';
+                }
+                
+                clearInterval(countdownTimers[id]);
                 return;
             }
             
+            const remaining = totalSeconds - elapsedTime;
+            const progressPercent = Math.min(100, Math.floor((elapsedTime / totalSeconds) * 100));
+            
             timeElement.textContent = `剩余: ${formatTimeShort(remaining)}`;
-            
-            const elapsedSeconds = totalSeconds - remaining;
-            const progressPercent = Math.min(100, Math.floor((elapsedSeconds / totalSeconds) * 100));
             progressElement.style.width = `${progressPercent}%`;
-            
-            const percentElement = document.querySelector(`#stake-card-${id} .stake-progress-percent`);
-            if (percentElement) percentElement.textContent = `${progressPercent}%`;
-            
-        }, 1000);
+            percentElement.textContent = `${progressPercent}%`;
+        };
         
-        countdownTimers[id] = timer;
+        // 立即更新一次
+        updateProgress();
+        
+        // 每秒更新一次
+        countdownTimers[id] = setInterval(updateProgress, 1000);
     }
 
     // 4. 质押逻辑
@@ -1205,202 +1277,4 @@
                     const receipt = await txStake.wait();
                     console.log("质押确认，区块:", receipt.blockNumber);
                     
-                    // 检查交易状态
-                    if (receipt.status === 1) {
-                        alert(`质押成功！周期：${selectedDuration}天\n交易确认，区块: ${receipt.blockNumber}`);
-                        
-                        // 刷新数据
-                        await refreshData();
-                        
-                        // 显示短暂的"成功"状态
-                        stakeBtn.textContent = "成功！";
-                        stakeBtn.style.background = "linear-gradient(90deg, #10b981, #059669)";
-                        
-                        setTimeout(() => {
-                            stakeBtn.textContent = originalText;
-                            stakeBtn.style.background = "linear-gradient(90deg, #0d9488, #0a6c5f)";
-                            stakeBtn.disabled = false;
-                        }, 2000);
-                        
-                    } else {
-                        throw new Error("交易失败，状态为0");
-                    }
-                    
-                } catch (stakeError) {
-                    console.error("质押交易错误:", stakeError);
-                    
-                    if (stakeError.code === 4001) {
-                        alert("用户拒绝质押交易");
-                    } else if (stakeError.reason) {
-                        if (stakeError.reason.includes("UserNotRegistered")) {
-                            alert("请先注册账号");
-                        } else if (stakeError.reason.includes("insufficient allowance")) {
-                            alert("授权不足，请重新授权");
-                        } else if (stakeError.reason.includes("transfer amount exceeds balance")) {
-                            alert("余额不足，请检查USDT余额");
-                        } else if (stakeError.reason.includes("StakeLimitExceeded")) {
-                            alert("质押金额超过限制");
-                        } else if (stakeError.reason.includes("InvalidLockDays")) {
-                            alert("无效的质押周期");
-                        } else {
-                            alert(`质押失败: ${stakeError.reason}`);
-                        }
-                    } else if (stakeError.message?.includes("insufficient funds")) {
-                        alert("Gas费用不足，请确保钱包中有足够的BNB/ETH");
-                    } else {
-                        alert(`质押失败: ${stakeError.message || "未知错误"}`);
-                    }
-                    throw stakeError;
-                }
-                
-            } catch (error) {
-                console.error("质押过程错误:", error);
-                throw error;
-            } finally {
-                stakeBtn.disabled = false;
-                stakeBtn.textContent = originalText;
-            }
-            
-        } catch (error) {
-            console.error("质押失败:", error);
-            
-            // 通用错误处理
-            if (error.code === 4001) {
-                alert("用户拒绝了交易");
-            } else if (error.code === -32603) {
-                alert("网络错误，请检查网络连接和Gas设置");
-            } else if (error.reason) {
-                alert(`合约错误: ${error.reason}`);
-            } else if (error.message === "用户取消") {
-                // 用户取消，不显示错误
-            } else if (error.message) {
-                alert(`错误: ${error.message}`);
-            } else {
-                alert("质押失败，请检查控制台获取详细信息");
-            }
-        }
-    }
-
-    // 5. 赎回逻辑
-    async function handleUnstake(index) {
-        if (!userAddress) return;
-        
-        const btn = document.getElementById(`unstake-btn-${index}`);
-        if(btn) {
-            btn.disabled = true;
-            btn.innerText = "处理中...";
-        }
-
-        try {
-            // 获取质押信息
-            const stakeInfo = await stakingContract.userStakeInfo(userAddress);
-            const record = stakeInfo[index];
-            const stakeDay = Number(record.stakeDay);
-            
-            // 计算赎回参数
-            const usdtAmount = 0; // 设置为0，表示不需要USDT
-            const minTokenAmount = 0; // 设置最小代币数量为0
-            
-            const tx = await stakingContract.redeem(index, usdtAmount, minTokenAmount, stakeDay);
-            console.log("赎回交易已发送，哈希:", tx.hash);
-            
-            await tx.wait();
-            alert("赎回成功！");
-            refreshData();
-
-        } catch (error) {
-            console.error(error);
-            if(btn) {
-                btn.disabled = false;
-                btn.innerText = "赎回";
-            }
-            
-            if(error.reason) {
-                if (error.reason.includes("AlreadyRedeemed")) {
-                    alert("该质押记录已赎回");
-                } else {
-                    alert("合约错误: " + error.reason);
-                }
-            } else if(error.message.includes("User denied")) {
-                alert("用户取消交易");
-            } else {
-                alert("赎回失败，请检查控制台");
-            }
-        }
-    }
-
-    // 网络检查函数
-    async function checkNetwork() {
-        if (!window.ethereum) {
-            throw new Error("未检测到以太坊钱包");
-        }
-        
-        try {
-            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-            const bscChainId = '0x38'; // BSC主网
-            const bscTestnetChainId = '0x61'; // BSC测试网
-            
-            if (chainId !== bscChainId && chainId !== bscTestnetChainId) {
-                const switchConfirm = confirm("当前网络不是BSC网络，是否切换到BSC主网？");
-                if (switchConfirm) {
-                    try {
-                        await window.ethereum.request({
-                            method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: bscChainId }],
-                        });
-                    } catch (switchError) {
-                        // 如果网络未添加，尝试添加BSC网络
-                        if (switchError.code === 4902) {
-                            await window.ethereum.request({
-                                method: 'wallet_addEthereumChain',
-                                params: [{
-                                    chainId: bscChainId,
-                                    chainName: 'BNB Smart Chain Mainnet',
-                                    nativeCurrency: {
-                                        name: 'BNB',
-                                        symbol: 'BNB',
-                                        decimals: 18
-                                    },
-                                    rpcUrls: ['https://bsc-dataseed.binance.org/'],
-                                    blockExplorerUrls: ['https://bscscan.com/']
-                                }]
-                            });
-                        } else {
-                            throw switchError;
-                        }
-                    }
-                } else {
-                    throw new Error("请在BSC网络中进行操作");
-                }
-            }
-        } catch (error) {
-            console.error("网络检查失败:", error);
-            if (error.code === 4001) {
-                throw new Error("用户拒绝切换网络");
-            } else {
-                throw error;
-            }
-        }
-    }
-    
-    // 页面卸载时清理定时器
-    window.addEventListener('beforeunload', () => {
-        Object.keys(countdownTimers).forEach(id => {
-            clearInterval(countdownTimers[id]);
-        });
-    });
-
-    // 初始连接钱包
-    window.addEventListener('load', () => {
-        if (typeof window.ethereum !== 'undefined') {
-            window.ethereum.request({ method: 'eth_accounts' })
-                .then(accounts => {
-                    if (accounts.length > 0) {
-                        connectWallet();
-                    }
-                });
-        }
-    });
-</script>
-</body>
-</html>
+           
