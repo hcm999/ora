@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>GANA质押 · 付费解锁</title>
+    <title>GANA质押 · 双层支付解锁</title>
     <!-- 引入 Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- 引入 Chart.js -->
@@ -11,7 +11,6 @@
     <!-- 引入 Ethers.js V6 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
     <style>
-        /* 保持原有风格 */
         * {
             margin: 0;
             padding: 0;
@@ -91,7 +90,6 @@
             justify-content: space-between;
         }
         
-        /* 限制展示遮罩 */
         .restriction-mask {
             position: absolute;
             top: 0;
@@ -486,7 +484,6 @@
         
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        /* 授权弹窗样式 */
         .auth-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -620,16 +617,14 @@
 </head>
 <body>
     <div class="container-fluid">
-        <!-- 头部 -->
         <div class="header">
             <div style="width: 100%;">
-                <h1>🔍 GANA 质押数据展示端 <span class="viewer-badge">授权访问</span></h1>
-                <div class="subtitle">云端更新 · 实时展示</div>
+                <h1>🔍 GANA 质押数据展示端 <span class="viewer-badge">双层支付解锁</span></h1>
+                <div class="subtitle">第一次支付10 USDT进入 · 第二次支付10 USDT解锁敏感数据</div>
                 <div class="contract-address" id="stakingContractAddress">0x72212F35aC448FE7763aA1BFdb360193Fa098E52</div>
             </div>
         </div>
 
-        <!-- 状态栏 -->
         <div class="status-bar">
             <div class="last-update">
                 📅 云端数据: <span id="lastUpdateTime">加载中...</span>
@@ -640,27 +635,22 @@
             </div>
         </div>
 
-        <!-- 统计卡片 - 第一行 -->
         <div class="stats-grid">
-            <!-- LP池余额 (无限制) -->
             <div class="stat-card" id="cardLpFirst">
                 <div class="stat-title">💧 LP池余额</div>
                 <div class="stat-value" id="lpPoolBalanceDisplay">0.00</div>
                 <div class="stat-sub">USDT</div>
             </div>
-            <!-- 1天质押额 -->
             <div class="stat-card" id="card1d">
                 <div class="stat-title">💰 1天质押额</div>
                 <div class="stat-value" id="totalStaked1d">0.00</div>
                 <div class="stat-sub"><span id="count1d">0</span></div>
             </div>
-            <!-- 15天质押额 -->
             <div class="stat-card" id="card15d">
                 <div class="stat-title">💰 15天质押额</div>
                 <div class="stat-value" id="totalStaked15d">0.00</div>
                 <div class="stat-sub"><span id="count15d">0</span></div>
             </div>
-            <!-- 30天质押额 -->
             <div class="stat-card" id="card30d">
                 <div class="stat-title">💰 30天质押额</div>
                 <div class="stat-value" id="totalStaked30d">0.00</div>
@@ -668,58 +658,50 @@
             </div>
         </div>
 
-        <!-- 统计卡片 - 第二行：受限制区域，需要付费10USDT解锁查看 -->
         <div class="stats-grid">
-            <!-- 总质押额 (限制，可点击解锁) -->
             <div class="stat-card" id="cardTotalStaked">
                 <div class="stat-title">💰 总质押额</div>
                 <div class="stat-value" id="totalStaked">0.00</div>
                 <div class="stat-sub">USDT</div>
-                <!-- 限制遮罩层，点击后触发付费解锁 -->
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付解锁</span>
+                    <span>🔒 支付10 USDT解锁</span>
                     <span class="small-note">查看总质押</span>
                 </div>
             </div>
-            <!-- 未来可赎回 2天 (限制) -->
             <div class="stat-card" id="cardUnlock2d">
                 <div class="stat-title">⏳ 2天可赎回</div>
                 <div class="stat-value" id="unlock2d">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付解锁</span>
+                    <span>🔒 支付10 USDT解锁</span>
                     <span class="small-note">2天可赎回</span>
                 </div>
             </div>
-            <!-- 未来可赎回 7天 (限制) -->
             <div class="stat-card" id="cardUnlock7d">
                 <div class="stat-title">⏳ 7天可赎回</div>
                 <div class="stat-value" id="unlock7d">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付解锁</span>
+                    <span>🔒 支付10 USDT解锁</span>
                     <span class="small-note">7天可赎回</span>
                 </div>
             </div>
-            <!-- 未来可赎回 15天 (限制) -->
             <div class="stat-card" id="cardUnlock15d">
                 <div class="stat-title">⏳ 15天可赎回</div>
                 <div class="stat-value" id="unlock15d">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付解锁</span>
+                    <span>🔒 支付10 USDT解锁</span>
                     <span class="small-note">15天可赎回</span>
                 </div>
             </div>
         </div>
 
-        <!-- 数据选项卡 -->
         <div class="data-tabs">
             <span class="data-tab active" data-tab="daily">📅 每日统计</span>
             <span class="data-tab" data-tab="charts">📊 图表</span>
         </div>
 
-        <!-- 每日统计面板 -->
         <div id="panel-daily" class="data-panel active">
             <div class="table-container">
                 <div class="stats-info">
@@ -746,7 +728,6 @@
             </div>
         </div>
 
-        <!-- 图表面板 -->
         <div id="panel-charts" class="data-panel">
             <div class="chart-grid">
                 <div class="chart-card">
@@ -782,14 +763,12 @@
         </div>
     </div>
 
-    <!-- 加载遮罩 -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">
         <div class="loading-spinner"></div>
         <div class="loading-text" id="loadingText">加载中...</div>
     </div>
 
     <script>
-        // ================= 配置 =================
         const CONFIG = {
             STAKING: "0x72212F35aC448FE7763aA1BFdb360193Fa098E52",
             LP_POOL: "0xa2f464a2462aed49b9b31eb8861bc6b0bbb0483f",
@@ -799,7 +778,6 @@
             UNLOCK_STORAGE_KEY: 'RESTRICTED_UNLOCKED'
         };
 
-        // USDT的ABI
         const USDT_ABI = [
             "function balanceOf(address account) view returns (uint256)",
             "function decimals() view returns (uint8)",
@@ -808,7 +786,6 @@
             "function allowance(address owner, address spender) view returns (uint256)"
         ];
 
-        // ================= 全局变量 =================
         let usdtContract = null;
         let currentData = {
             stats: { 
@@ -831,11 +808,8 @@
         let trendRange = 30;
         let isLoading = false;
         let provider = null;
-
-        // 是否已解锁限制卡片
         let restrictedUnlocked = localStorage.getItem(CONFIG.UNLOCK_STORAGE_KEY) === 'true';
 
-        // ================= 授权配置 =================
         const AUTH_CONFIG = {
             enabled: true,
             payment: {
@@ -857,7 +831,6 @@
             }
         };
 
-        // ================= 授权工具函数 =================
         const DateUtils = {
             getExpireTimestamp(days) { const now = new Date(); now.setDate(now.getDate() + days); return now.getTime(); },
             formatDate(timestamp) { if (!timestamp) return '永久'; const d = new Date(timestamp); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
@@ -958,12 +931,149 @@
             }
         };
 
-        // ========== 解锁受限制卡片（支付10 USDT） ==========
+        function showSuccessToast(message) { 
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed; top:20px; left:50%; transform:translateX(-50%);
+                background: #10b981; color:white; padding:12px 24px; border-radius:50px;
+                z-index:10001; font-weight:600; box-shadow:0 10px 30px rgba(16,185,129,0.3);
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function showLoading(message) { 
+            document.getElementById('loadingOverlay').style.display = 'flex'; 
+            document.getElementById('loadingText').textContent = message || '加载中...'; 
+        }
+
+        function hideLoading() { 
+            document.getElementById('loadingOverlay').style.display = 'none'; 
+        }
+
+        function showBaseAuthDialog() {
+            const old = document.getElementById('baseAuthOverlay');
+            if (old) old.remove();
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'auth-overlay';
+            overlay.id = 'baseAuthOverlay';
+            
+            const expireDate = DateUtils.formatDate(DateUtils.getExpireTimestamp(AUTH_CONFIG.payment.days));
+            
+            overlay.innerHTML = `
+                <div class="auth-dialog">
+                    <div style="text-align:center;margin-bottom:20px;">
+                        <div style="font-size:48px;">🔐</div>
+                        <h2 style="color:#e2e8f0;font-size:1.5rem;">基础授权</h2>
+                        <p style="color:#94a3b8;">支付10 USDT获得30天访问权限</p>
+                    </div>
+                    
+                    <div class="fixed-price-box">
+                        <div class="price-label">授权费用</div>
+                        <div class="price-amount">10 USDT</div>
+                        <div class="price-days">有效期 30 天</div>
+                        <div style="color:#94a3b8; font-size:0.75rem; margin-top:10px;">
+                            到期日: ${expireDate}
+                        </div>
+                    </div>
+
+                    <button id="basePayBtn" class="btn-pay">
+                        💎 支付10 USDT授权
+                    </button>
+
+                    <div style="margin-top:15px;padding:10px;background:#1e293b;border-radius:16px;">
+                        <div style="color:#94a3b8;font-size:0.8rem;display:flex;align-items:center;gap:5px;">
+                            <span>ℹ️</span>
+                            <span>支付后即可查看基础数据，敏感数据需额外10 USDT解锁</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            document.getElementById('basePayBtn').addEventListener('click', async () => {
+                const btn = document.getElementById('basePayBtn');
+                try {
+                    btn.disabled = true;
+                    btn.textContent = '支付处理中...';
+
+                    await AuthManager.checkWallet();
+                    await AuthManager.checkNetwork();
+
+                    const address = await AuthManager.connectWallet();
+
+                    if (AuthManager.isAdminAddress(address)) {
+                        const authData = AuthManager.saveAdminAuth(address, 'address');
+                        document.body.removeChild(overlay);
+                        showSuccessToast('👑 管理员登录成功');
+                        location.reload();
+                        return;
+                    }
+
+                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    const requiredAmount = 10;
+
+                    await AuthManager.checkUSDTBalance(address, provider, requiredAmount);
+
+                    const hasAllowance = await AuthManager.checkAllowance(address, provider, requiredAmount);
+                    if (!hasAllowance) {
+                        btn.textContent = '授权中...';
+                        await AuthManager.approveUSDT(address, provider, requiredAmount);
+                    }
+
+                    btn.textContent = '支付中...';
+                    const txHash = await AuthManager.sendUSDT(address, provider, requiredAmount);
+
+                    const authData = AuthManager.savePaymentAuth(
+                        address, 
+                        AUTH_CONFIG.payment.days, 
+                        requiredAmount, 
+                        txHash
+                    );
+
+                    document.body.removeChild(overlay);
+                    showSuccessToast(`✅ 授权成功！有效期至：${DateUtils.formatDate(authData.expireTime)}`);
+                    
+                    location.reload();
+
+                } catch (error) {
+                    console.error('支付错误:', error);
+                    
+                    let errorMsg = '❌ 授权失败：';
+                    if (error.message === 'NO_WALLET') {
+                        errorMsg += '未安装钱包';
+                        if (confirm('未安装MetaMask，是否前往安装？')) {
+                            window.open('https://metamask.io/download/', '_blank');
+                        }
+                    } else if (error.message.includes('INSUFFICIENT_BALANCE')) {
+                        const balance = error.message.split(':')[1];
+                        errorMsg = `❌ USDT余额不足 (当前: ${balance} USDT)`;
+                    } else {
+                        errorMsg += error.message || '未知错误';
+                    }
+                    
+                    alert(errorMsg);
+                    btn.disabled = false;
+                    btn.textContent = '💎 支付10 USDT授权';
+                }
+            });
+        }
+
         async function unlockRestrictedCards() {
             if (restrictedUnlocked) {
                 removeRestrictionMasks();
                 return;
             }
+            
+            if (!AuthManager.isAuthorized()) {
+                alert('请先完成基础授权支付（10 USDT）');
+                showBaseAuthDialog();
+                return;
+            }
+            
             try {
                 await AuthManager.checkWallet();
                 await AuthManager.checkNetwork();
@@ -977,7 +1087,6 @@
                     return;
                 }
 
-                // 修复：使用正确的provider
                 const browserProvider = new ethers.BrowserProvider(window.ethereum);
                 const requiredAmount = 10;
 
@@ -990,14 +1099,15 @@
                     hideLoading();
                 }
 
-                showLoading('支付10 USDT中...');
+                showLoading('支付10 USDT解锁敏感数据...');
                 const txHash = await AuthManager.sendUSDT(address, browserProvider, requiredAmount);
 
                 restrictedUnlocked = true;
                 localStorage.setItem(CONFIG.UNLOCK_STORAGE_KEY, 'true');
                 hideLoading();
                 removeRestrictionMasks();
-                showSuccessToast('✅ 解锁成功！');
+                showSuccessToast('✅ 敏感数据已解锁！');
+
             } catch (error) {
                 console.error('解锁支付失败:', error);
                 hideLoading();
@@ -1021,54 +1131,26 @@
             document.querySelectorAll('.restriction-mask').forEach(mask => mask.remove());
         }
 
-        function applyUnlockState() {
-            if (restrictedUnlocked) {
-                removeRestrictionMasks();
-            }
-        }
-
-        // 显示授权弹窗（简化版，实际使用时需要完整实现）
-        function showAuthDialog() {
-            alert('请先完成基础授权');
-        }
-
-        function showSuccessToast(message) { 
-            const toast = document.createElement('div');
-            toast.style.cssText = `
-                position: fixed; top:20px; left:50%; transform:translateX(-50%);
-                background: #10b981; color:white; padding:12px 24px; border-radius:50px;
-                z-index:10001; font-weight:600; box-shadow:0 10px 30px rgba(16,185,129,0.3);
-            `;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        function showAuthBadge(authData) { 
-            // 简化的授权徽章
-            console.log(authData);
-        }
-
         function checkAuthAndLoad() {
-            if (!AUTH_CONFIG.enabled) {
-                loadCloudData();
-                return;
-            }
-            const authorized = AuthManager.isAuthorized();
-            if (!authorized) {
+            const baseAuthorized = AuthManager.isAuthorized();
+            
+            if (!baseAuthorized) {
                 document.querySelectorAll('.stats-grid, .status-bar, .data-tabs, .table-container, .chart-card').forEach(el => {
                     el.style.opacity = '0.5';
                     el.style.pointerEvents = 'none';
                 });
-                setTimeout(() => showAuthDialog(), 300);
+                showBaseAuthDialog();
             } else {
                 document.querySelectorAll('.stats-grid, .status-bar, .data-tabs, .table-container, .chart-card').forEach(el => {
                     el.style.opacity = '1';
                     el.style.pointerEvents = 'auto';
                 });
-                const authInfo = AuthManager.getAuthInfo();
-                if (authInfo) showAuthBadge(authInfo);
+                
                 loadCloudData();
+                
+                if (restrictedUnlocked) {
+                    removeRestrictionMasks();
+                }
             }
         }
 
@@ -1077,7 +1159,6 @@
             loadCloudData(true);
         }
 
-        // ================= 刷新LP池余额 =================
         async function refreshLPPool() {
             const btn = document.getElementById('refreshLPBtn');
             if (!btn || btn.disabled) return;
@@ -1115,7 +1196,6 @@
             }
         }
 
-        // ================= 从云端加载数据 =================
         async function loadCloudData(showLoadingOverlay = false) {
             if (isLoading) return;
             isLoading = true;
@@ -1193,7 +1273,6 @@
             document.getElementById('unlock15d').innerText = (stats.unlock15d || 0).toFixed(2);
         }
 
-        // ================= 每日统计渲染函数 =================
         function renderDailyStats() {
             const allRecords = currentData.allRecords || [];
             
@@ -1260,7 +1339,6 @@
             `).join('');
         }
 
-        // ================= 图表相关函数 =================
         function setTrendRange(days) {
             trendRange = days;
             document.querySelectorAll('.range-btn').forEach(btn => {
@@ -1508,7 +1586,6 @@
             }
         }
 
-        // ================= 工具函数 =================
         function getDateStrFromTimestamp(timestamp) {
             const date = new Date(timestamp * 1000);
             return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')}`;
@@ -1516,15 +1593,6 @@
 
         function exportDailyStats() {
             alert('导出功能正常');
-        }
-
-        function showLoading(message) { 
-            document.getElementById('loadingOverlay').style.display = 'flex'; 
-            document.getElementById('loadingText').textContent = message || '加载中...'; 
-        }
-
-        function hideLoading() { 
-            document.getElementById('loadingOverlay').style.display = 'none'; 
         }
 
         function switchDataTab(tab) {
@@ -1535,7 +1603,6 @@
             if (tab === 'charts') { setTimeout(() => updateCharts(), 50); }
         }
 
-        // ================= 初始化 =================
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('stakingContractAddress').innerText = CONFIG.STAKING;
             try {
@@ -1543,7 +1610,6 @@
                 usdtContract = new ethers.Contract( CONFIG.USDT, ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"], provider );
             } catch (error) { console.error('USDT合约初始化失败:', error); }
             checkAuthAndLoad();
-            applyUnlockState();
             document.querySelector('.data-tabs').addEventListener('click', (e) => {
                 const tab = e.target.closest('.data-tab');
                 if (tab) { switchDataTab(tab.dataset.tab); }
