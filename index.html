@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>GANA质押 · 双层支付解锁</title>
+    <title>GANA质押数据展示</title>
     <!-- 引入 Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- 引入 Chart.js -->
@@ -619,8 +619,8 @@
     <div class="container-fluid">
         <div class="header">
             <div style="width: 100%;">
-                <h1>🔍 GANA 质押数据展示端 <span class="viewer-badge">双层支付解锁</span></h1>
-                <div class="subtitle">第一次支付10 USDT进入 · 第二次支付10 USDT解锁敏感数据</div>
+                <h1>🔍 GANA 质押数据展示端 <span class="viewer-badge">付费数据</span></h1>
+                <div class="subtitle">云端定时更新数据-请勿泄露</div>
                 <div class="contract-address" id="stakingContractAddress">0x72212F35aC448FE7763aA1BFdb360193Fa098E52</div>
             </div>
         </div>
@@ -664,8 +664,8 @@
                 <div class="stat-value" id="totalStaked">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付10 USDT解锁</span>
-                    <span class="small-note">查看总质押</span>
+                    <span>🔒</span>
+                    <span class="small-note">总质押金额</span>
                 </div>
             </div>
             <div class="stat-card" id="cardUnlock2d">
@@ -673,7 +673,7 @@
                 <div class="stat-value" id="unlock2d">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付10 USDT解锁</span>
+                    <span>🔒</span>
                     <span class="small-note">2天可赎回</span>
                 </div>
             </div>
@@ -682,7 +682,7 @@
                 <div class="stat-value" id="unlock7d">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付10 USDT解锁</span>
+                    <span>🔒</span>
                     <span class="small-note">7天可赎回</span>
                 </div>
             </div>
@@ -691,7 +691,7 @@
                 <div class="stat-value" id="unlock15d">0.00</div>
                 <div class="stat-sub">USDT</div>
                 <div class="restriction-mask" onclick="unlockRestrictedCards()">
-                    <span>🔒 支付10 USDT解锁</span>
+                    <span>🔒</span>
                     <span class="small-note">15天可赎回</span>
                 </div>
             </div>
