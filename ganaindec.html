@@ -1656,59 +1656,194 @@
             });
         }
         
-        function updatePieAndUnlockCharts() {
-            if(!queryResults.length){ 
-                if(pieChart)pieChart.destroy(); 
-                if(unlockChart)unlockChart.destroy(); 
-                pieChart=unlockChart=null; 
-                document.getElementById('pieLegend').innerHTML = '';
-                return; 
-            }
-            let sum1d=0,sum15d=0,sum30d=0; 
-            queryResults.forEach(r=>{ 
-                if(r.stakeIndex===0) sum1d+=r.amount; 
-                else if(r.stakeIndex===1) sum15d+=r.amount; 
-                else if(r.stakeIndex===2) sum30d+=r.amount; 
-            });
-            
-            const total = sum1d + sum15d + sum30d;
-            const p1d = total > 0 ? ((sum1d / total) * 100).toFixed(1) : 0;
-            const p15d = total > 0 ? ((sum15d / total) * 100).toFixed(1) : 0;
-            const p30d = total > 0 ? ((sum30d / total) * 100).toFixed(1) : 0;
-            
-            document.getElementById('pieLegend').innerHTML = `
-                <div class="legend-item">
-                    <span class="legend-color" style="background:#3b82f6;"></span>
-                    1天: ${sum1d.toFixed(2)} (${p1d}%)
-                </div>
-                <div class="legend-item">
-                    <span class="legend-color" style="background:#8b5cf6;"></span>
-                    15天: ${sum15d.toFixed(2)} (${p15d}%)
-                </div>
-                <div class="legend-item">
-                    <span class="legend-color" style="background:#ec4899;"></span>
-                    30天: ${sum30d.toFixed(2)} (${p30d}%)
-                </div>
-            `;
-            
-            const nowSec=Math.floor(Date.now()/1000);
-            let u0_2=0,u2_7=0,u7_15=0,u15_25=0,u25p=0;
-            queryResults.forEach(r=>{ 
-                const remain=r.unlockTime-nowSec; 
-                if(remain<=172800) u0_2+=r.amount; 
-                else if(remain<=604800) u2_7+=r.amount; 
-                else if(remain<=1296000) u7_15+=r.amount; 
-                else if(remain<=2160000) u15_25+=r.amount; 
-                else u25p+=r.amount; 
-            });
-            const pieCtx=document.getElementById('pieChart')?.getContext('2d'); 
-            const unlockCtx=document.getElementById('unlockChart')?.getContext('2d'); 
-            if(!pieCtx||!unlockCtx) return;
-            if(pieChart)pieChart.destroy(); 
-            if(unlockChart)unlockChart.destroy();
-            pieChart=new Chart(pieCtx,{type:'doughnut',data:{labels:['1天','15天','30天'],datasets:[{data:[sum1d,sum15d,sum30d],backgroundColor:['#3b82f6','#8b5cf6','#ec4899'],borderColor:'#1e293b',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(context)=>{const value=context.raw; const percentage=total>0?((value/total)*100).toFixed(1):0; return `${context.label}: ${value.toFixed(2)} USDT (${percentage}%)`;}}}}}});
-            unlockChart=new Chart(unlockCtx,{type:'bar',data:{labels:['0-2天','2-7天','7-15天','15-25天','>25天'],datasets:[{label:'可赎回金额 (USDT)',data:[u0_2,u2_7,u7_15,u15_25,u25p],backgroundColor:['#f87171','#fbbf24','#60a5fa','#a78bfa','#ec4899'],borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,grid:{color:'#334155'},ticks:{color:'#94a3b8'}},x:{ticks:{color:'#94a3b8'}}},plugins:{legend:{labels:{color:'#e2e8f0'}}}}});
+function updatePieAndUnlockCharts() {
+    if(!queryResults.length){ 
+        if(pieChart)pieChart.destroy(); 
+        if(unlockChart)unlockChart.destroy(); 
+        pieChart=unlockChart=null; 
+        document.getElementById('pieLegend').innerHTML = '';
+        return; 
+    }
+    let sum1d=0,sum15d=0,sum30d=0; 
+    queryResults.forEach(r=>{ 
+        if(r.stakeIndex===0) sum1d+=r.amount; 
+        else if(r.stakeIndex===1) sum15d+=r.amount; 
+        else if(r.stakeIndex===2) sum30d+=r.amount; 
+    });
+    
+    const total = sum1d + sum15d + sum30d;
+    const p1d = total > 0 ? ((sum1d / total) * 100).toFixed(1) : 0;
+    const p15d = total > 0 ? ((sum15d / total) * 100).toFixed(1) : 0;
+    const p30d = total > 0 ? ((sum30d / total) * 100).toFixed(1) : 0;
+    
+    document.getElementById('pieLegend').innerHTML = `
+        <div class="legend-item">
+            <span class="legend-color" style="background:#3b82f6;"></span>
+            1天: ${sum1d.toFixed(2)} (${p1d}%)
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#8b5cf6;"></span>
+            15天: ${sum15d.toFixed(2)} (${p15d}%)
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#ec4899;"></span>
+            30天: ${sum30d.toFixed(2)} (${p30d}%)
+        </div>
+    `;
+    
+    const nowSec = Math.floor(Date.now() / 1000);
+    
+    // 初始化各类别的金额
+    let future0_2=0, future2_7=0, future7_15=0, future15_25=0, future25p=0;  // 未来可赎回（红色）
+    let expired0_2=0, expired2_7=0, expired7_15=0, expired15_25=0, expired25p=0;  // 已到期（绿色）
+    
+    queryResults.forEach(r => { 
+        const remain = r.unlockTime - nowSec; 
+        
+        if (remain <= 0) {
+            // 已到期（绿色）- 按过期时间分类
+            const daysAgo = Math.abs(remain) / 86400;  // 转换为天数
+            if (daysAgo <= 2) expired0_2 += r.amount;
+            else if (daysAgo <= 7) expired2_7 += r.amount;
+            else if (daysAgo <= 15) expired7_15 += r.amount;
+            else if (daysAgo <= 25) expired15_25 += r.amount;
+            else expired25p += r.amount;
+        } else {
+            // 未到期（红色）- 按剩余时间分类
+            if(remain <= 172800) future0_2 += r.amount; 
+            else if(remain <= 604800) future2_7 += r.amount; 
+            else if(remain <= 1296000) future7_15 += r.amount; 
+            else if(remain <= 2160000) future15_25 += r.amount; 
+            else future25p += r.amount; 
         }
+    });
+    
+    const pieCtx = document.getElementById('pieChart')?.getContext('2d'); 
+    const unlockCtx = document.getElementById('unlockChart')?.getContext('2d'); 
+    if(!pieCtx||!unlockCtx) return;
+    if(pieChart)pieChart.destroy(); 
+    if(unlockChart)unlockChart.destroy();
+    
+    pieChart = new Chart(pieCtx, {
+        type:'doughnut',
+        data:{
+            labels:['1天','15天','30天'],
+            datasets:[{
+                data:[sum1d,sum15d,sum30d],
+                backgroundColor:['#3b82f6','#8b5cf6','#ec4899'],
+                borderColor:'#1e293b',
+                borderWidth:2
+            }]
+        },
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            plugins:{
+                legend:{display:false},
+                tooltip:{
+                    callbacks:{
+                        label:(context)=>{
+                            const value=context.raw; 
+                            const percentage=total>0?((value/total)*100).toFixed(1):0; 
+                            return `${context.label}: ${value.toFixed(2)} USDT (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // 创建堆叠柱状图（红色未来 + 绿色已到期）
+    unlockChart = new Chart(unlockCtx, {
+        type: 'bar',
+        data: {
+            labels: ['0-2天', '2-7天', '7-15天', '15-25天', '>25天'],
+            datasets: [
+                {
+                    label: '未来可赎回 (未到期)',
+                    data: [future0_2, future2_7, future7_15, future15_25, future25p],
+                    backgroundColor: '#f87171',  // 红色
+                    borderRadius: 6,
+                    stack: 'total'  // 同一组堆叠
+                },
+                {
+                    label: '已到期可赎回',
+                    data: [expired0_2, expired2_7, expired7_15, expired15_25, expired25p],
+                    backgroundColor: '#4ade80',  // 绿色
+                    borderRadius: 6,
+                    stack: 'total'  // 同一组堆叠
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8' },
+                    stacked: true,  // 启用堆叠
+                    title: {
+                        display: true,
+                        text: '金额 (USDT)',
+                        color: '#94a3b8'
+                    }
+                },
+                x: {
+                    ticks: { color: '#94a3b8' },
+                    stacked: true,  // 启用堆叠
+                    title: {
+                        display: true,
+                        text: '时间区间',
+                        color: '#94a3b8'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#e2e8f0' },
+                    position: 'top',
+                    align: 'center'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const label = context.dataset.label || '';
+                            const value = context.raw.toFixed(2);
+                            // 计算该区间的总金额
+                            const datasetIndex = context.datasetIndex;
+                            const dataIndex = context.dataIndex;
+                            const totalForBar = future0_2 + expired0_2; // 这里简化了，实际需要根据索引计算
+                            
+                            // 根据数据集索引计算该区间的总金额
+                            let barTotal = 0;
+                            if (dataIndex === 0) barTotal = future0_2 + expired0_2;
+                            else if (dataIndex === 1) barTotal = future2_7 + expired2_7;
+                            else if (dataIndex === 2) barTotal = future7_15 + expired7_15;
+                            else if (dataIndex === 3) barTotal = future15_25 + expired15_25;
+                            else if (dataIndex === 4) barTotal = future25p + expired25p;
+                            
+                            const percentage = barTotal > 0 ? ((value / barTotal) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} USDT (占该区间 ${percentage}%)`;
+                        },
+                        footer: (tooltipItems) => {
+                            // 显示该区间总金额
+                            const dataIndex = tooltipItems[0].dataIndex;
+                            let barTotal = 0;
+                            if (dataIndex === 0) barTotal = future0_2 + expired0_2;
+                            else if (dataIndex === 1) barTotal = future2_7 + expired2_7;
+                            else if (dataIndex === 2) barTotal = future7_15 + expired7_15;
+                            else if (dataIndex === 3) barTotal = future15_25 + expired15_25;
+                            else if (dataIndex === 4) barTotal = future25p + expired25p;
+                            return `区间总计: ${barTotal.toFixed(2)} USDT`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
         
         async function getLPPoolBalance() {
             try{ const usdt=new ethers.Contract(CONFIG.USDT,USDT_ABI,stakingContract.runner); const bal=await callWithRetry(()=>usdt.balanceOf(CONFIG.LP_POOL),"LP Pool"); return parseFloat(ethers.formatUnits(bal,18)); }catch{ return 0; }
